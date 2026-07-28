@@ -1,23 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-
-if not exist ".venv\Scripts\python.exe" (
-    echo [AI Mouse Lab] Virtuele omgeving maken...
-    py -3 -m venv .venv
-    if errorlevel 1 goto :error
-)
-
-echo [AI Mouse Lab] Dependencies controleren...
-".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt
-if errorlevel 1 goto :error
-
-echo [AI Mouse Lab] Starten...
-start "AI Mouse Lab" ".venv\Scripts\pythonw.exe" app.py
-exit /b 0
-
-:error
-echo.
-echo Starten is mislukt. Controleer of Python 3 is geinstalleerd.
-pause
-exit /b 1
+if not exist .venv py -m venv .venv
+call .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python app.py
+if errorlevel 1 pause
+endlocal
