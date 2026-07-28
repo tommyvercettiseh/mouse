@@ -1,7 +1,5 @@
 .venv/
 __pycache__/
 *.pyc
-data/recordings/
-data/aim_lab/
-data/profiles/
-data/benchmarks/
+data/
+.pytest_cache/
