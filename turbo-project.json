@@ -1,0 +1,19 @@
+{
+  "name": "AI Mouse Lab",
+  "version": "0.1.0",
+  "type": "windows-python",
+  "start_command": "Start AI Mouse Lab.bat",
+  "entrypoint": "app.py",
+  "pages": [
+    "Dashboard",
+    "Free Record",
+    "Aim Lab",
+    "Build Profile",
+    "Benchmark",
+    "Results",
+    "Profiles",
+    "Settings"
+  ],
+  "single_window": true,
+  "local_data": true
+}
