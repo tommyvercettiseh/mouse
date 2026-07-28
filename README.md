@@ -1,21 +1,30 @@
-# AI Mouse Lab v0.3.0
+# AI Mouse Lab v0.4.0
 
-Eén lokale Windows-hub met tabbladen voor Dashboard, Free Record, Aim Lab, Build Profile, Benchmark, Results, Profiles en Settings.
+Eén lokale Windows-hub voor Aim Lab-profielopbouw en een echte blinde mens-versus-profielbenchmark.
 
-## Kernverbeteringen
+## Benchmarkflow
 
-- Volledige Aim Lab-route per target in één coördinatenstelsel
-- Click down/up, reaction time, first entry, click delay en hold
-- Misses worden bewaard in plaats van weggefilterd
-- Smoothing voordat snelheid, acceleratie en jerk worden berekend
-- Overshoot, entries, exits, correcties en path efficiency
-- Transparante profielkwaliteit op basis van dekking, routediepte en contextvariatie
-- Reproduceerbare benchmarkplannen met vaste seed
-- Kernlogica opgesplitst in modules en voorzien van tests
+1. Bouw eerst je masterprofiel.
+2. Open **Benchmark**.
+3. Kies 20, 50 of 100 targets.
+4. Klik zelf de volledige targetreeks.
+5. De generator simuleert dezelfde targets met jouw werkelijke startposities.
+6. De app exporteert `A.json` en `B.json` met exact hetzelfde schema.
+7. Upload alleen A en B voor de blinde beoordeling.
+8. Open `private_answer.json` pas nadat de keuze is gemaakt.
 
-## Starten
+## Benchmarkmap
 
-Dubbelklik `Start AI Mouse Lab.bat`.
+```text
+data/benchmarks/<sessie>/
+├── benchmark_plan.json
+├── human_private.json
+├── generated_private.json
+├── A.json
+├── B.json
+├── private_answer.json
+└── summary.json
+```
 
 ## Testen
 
@@ -23,11 +32,9 @@ Dubbelklik `Start AI Mouse Lab.bat`.
 python -m unittest discover -s tests -v
 ```
 
-## Bewust nog niet aanwezig
+## Bewust nog niet
 
 - externe muisbesturing
 - cloudopslag
-- automatische mens/AI-classifier
+- automatische classifier in de app
 - custom image zone editor
-
-De volgende Core-stap is de volledige menselijke benchmarkrunner en blinde A/B-export.
