@@ -49,13 +49,36 @@ def smooth_points(points: list[dict[str, Any]], window: int = 5) -> list[dict[st
     return out
 
 
+def _densify(points: list[dict[str, Any]], max_step_px: float) -> list[dict[str, float]]:
+    """Interpolate long sampled segments so a fast pass through a target is not missed."""
+    source = [{"t_ms": float(p["t_ms"]), "x": float(p["x"]), "y": float(p["y"])} for p in points]
+    if len(source) < 2:
+        return source
+    dense = [source[0]]
+    for a, b in zip(source, source[1:]):
+        distance = math.hypot(b["x"] - a["x"], b["y"] - a["y"])
+        steps = max(1, int(math.ceil(distance / max(max_step_px, 1.0))))
+        for step in range(1, steps + 1):
+            fraction = step / steps
+            dense.append({
+                "t_ms": a["t_ms"] + (b["t_ms"] - a["t_ms"]) * fraction,
+                "x": a["x"] + (b["x"] - a["x"]) * fraction,
+                "y": a["y"] + (b["y"] - a["y"]) * fraction,
+            })
+    return dense
+
+
 def derive_trial(target: dict[str, float], start: dict[str, float], points: list[dict[str, Any]], click: dict[str, Any]) -> dict[str, Any]:
     if len(points) < 2:
         raise ValueError("At least two route points are required")
+
     clean = smooth_points(points)
     tx, ty, radius = float(target["x"]), float(target["y"]), float(target["radius"])
     sx, sy = float(start["x"]), float(start["y"])
-    straight = math.hypot(tx - sx, ty - sy)
+    dx, dy = tx - sx, ty - sy
+    straight = math.hypot(dx, dy)
+    ux, uy = (dx / straight, dy / straight) if straight > 0 else (0.0, 0.0)
+
     path = 0.0
     speeds: list[tuple[float, float]] = []
     accelerations: list[tuple[float, float]] = []
@@ -73,26 +96,46 @@ def derive_trial(target: dict[str, float], start: dict[str, float], points: list
         jerks.append((b[1] - a[1]) / dt)
 
     first_move_ms = 0.0
-    for p in clean:
-        if math.hypot(p["x"] - sx, p["y"] - sy) >= 3.0:
-            first_move_ms = p["t_ms"]
+    for point in clean:
+        if math.hypot(point["x"] - sx, point["y"] - sy) >= 3.0:
+            first_move_ms = point["t_ms"]
             break
 
-    inside = [math.hypot(p["x"] - tx, p["y"] - ty) <= radius for p in clean]
-    click_x = float(click.get("x", clean[-1]["x"]))
-    click_y = float(click.get("y", clean[-1]["y"]))
+    # Entry detection uses lightly processed raw segments. This catches a cursor that
+    # crosses the complete circle between two recorder samples.
+    motion = _densify(points, max(2.0, radius / 4.0))
+    inside = [math.hypot(p["x"] - tx, p["y"] - ty) <= radius for p in motion]
+    click_x = float(click.get("x", motion[-1]["x"]))
+    click_y = float(click.get("y", motion[-1]["y"]))
     if math.hypot(click_x - tx, click_y - ty) <= radius and not inside[-1]:
         inside[-1] = True
+
     first_entry_idx = next((i for i, value in enumerate(inside) if value), None)
-    first_entry_ms = clean[first_entry_idx]["t_ms"] if first_entry_idx is not None else None
+    first_entry_ms = motion[first_entry_idx]["t_ms"] if first_entry_idx is not None else None
     entry_count = sum(1 for prev, cur in zip(inside, inside[1:]) if not prev and cur)
     exit_count = sum(1 for prev, cur in zip(inside, inside[1:]) if prev and not cur)
-    correction_count = max(0, entry_count - 1)
 
-    overshoot = 0.0
+    radial_overshoot = 0.0
     if first_entry_idx is not None:
-        for p in clean[first_entry_idx:]:
-            overshoot = max(overshoot, max(0.0, math.hypot(p["x"] - tx, p["y"] - ty) - radius))
+        for point in motion[first_entry_idx:]:
+            radial_overshoot = max(radial_overshoot, max(0.0, math.hypot(point["x"] - tx, point["y"] - ty) - radius))
+
+    # Directional overshoot: pass the far edge of the target, then reverse toward it.
+    directional_overshoot = 0.0
+    if straight > 0 and motion:
+        projections = [(p["x"] - sx) * ux + (p["y"] - sy) * uy for p in motion]
+        peak_index = max(range(len(projections)), key=projections.__getitem__)
+        peak = projections[peak_index]
+        far_edge = straight + radius
+        later_min = min(projections[peak_index:])
+        reversal = peak - later_min
+        if peak > far_edge and reversal >= max(2.0, radius * 0.12):
+            directional_overshoot = peak - far_edge
+
+    overshoot = max(radial_overshoot, directional_overshoot)
+    correction_count = max(0, entry_count - 1)
+    if directional_overshoot > 0:
+        correction_count = max(1, correction_count)
 
     click_down_ms = float(click.get("down_t_ms") or clean[-1]["t_ms"])
     click_up_ms = float(click.get("up_t_ms") or click_down_ms)
@@ -113,6 +156,7 @@ def derive_trial(target: dict[str, float], start: dict[str, float], points: list
         "peak_jerk_px_s3": round(max((abs(v) for v in jerks), default=0.0), 3),
         "braking_start_ms": round(braking_start_ms, 3),
         "overshoot_px": round(overshoot, 3),
+        "directional_overshoot_px": round(directional_overshoot, 3),
         "correction_count": correction_count,
         "entry_count": entry_count,
         "exit_count": exit_count,
