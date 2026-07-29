@@ -1,17 +1,29 @@
-# AI Mouse Lab v0.4.0
+# AI Mouse Lab v0.6.0
 
-Eén lokale Windows-hub voor Aim Lab-profielopbouw en een echte blinde mens-versus-profielbenchmark.
+Eén lokale Windows-hub voor het opbouwen van een persoonlijk muisprofiel en een blinde mens-versus-profielbenchmark.
 
-## Benchmarkflow
+## Hoofdflow
 
-1. Bouw eerst je masterprofiel.
-2. Open **Benchmark**.
-3. Kies 20, 50 of 100 targets.
-4. Klik zelf de volledige targetreeks.
-5. De generator simuleert dezelfde targets met jouw werkelijke startposities.
-6. De app exporteert `A.json` en `B.json` met exact hetzelfde schema.
-7. Upload alleen A en B voor de blinde beoordeling.
-8. Open `private_answer.json` pas nadat de keuze is gemaakt.
+1. Neem Aim Lab-sessies op in de vaste virtuele arena van 1920 × 1080.
+2. Bouw het masterprofiel opnieuw.
+3. Open **Benchmark**.
+4. Kies met de slider 10 tot 100 targets.
+5. Speel zelf de targetreeks.
+6. Bekijk A en B direct side-by-side op dezelfde Benchmark-pagina.
+7. A wordt paars weergegeven en B groen; beide replays lopen synchroon.
+8. Upload alleen `A.json` en `B.json` voor de blinde beoordeling.
+9. Open `private_answer.json` pas na de keuze.
+
+## v0.6.0
+
+- vaste virtuele arena van 1920 × 1080 voor Aim Lab en Benchmark
+- automatische schaal naar het beschikbare venster
+- target-slider van 10 tot 100 targets
+- Benchmark setup, run en replay in één hoofdflow
+- side-by-side replay met gedeelde bediening
+- persoonlijkere generator met begrensde bochtigheid, overshoot en fouten
+- één consistente sessiestijl per gegenereerde benchmark
+- minder extreme zigzags en minder overdreven slechte routes
 
 ## Benchmarkmap
 
@@ -37,4 +49,5 @@ python -m unittest discover -s tests -v
 - externe muisbesturing
 - cloudopslag
 - automatische classifier in de app
-- custom image zone editor
+- heatmaps of video-export
+- neural network of diffusionmodel
