@@ -5,10 +5,12 @@ import customtkinter as ctk
 import app as original_app
 import run_fixed  # applies the v0.5 capture and replay fixes
 from ai_mouse_lab.v06 import apply_patch
+from ai_mouse_lab.v06_hotfix import apply_hotfix
 
 
 def main() -> None:
     apply_patch(original_app)
+    apply_hotfix(original_app)
     ctk.set_appearance_mode("dark")
     original_app.App().mainloop()
 
