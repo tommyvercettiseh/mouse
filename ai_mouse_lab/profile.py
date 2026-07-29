@@ -62,28 +62,43 @@ def _route_template(trial: dict[str, Any], max_points: int = 96) -> dict[str, An
         "click_along_px": round(click_rx * ux + click_ry * uy, 3),
         "click_side_px": round(click_rx * px + click_ry * py, 3),
         "miss_clicks": len(trial.get("miss_clicks", [])),
+        "path_efficiency": round(float(derived.get("path_efficiency", 0.9) or 0.9), 4),
         "points": normalized,
     }
 
 
 def build_profile(trials: list[dict[str, Any]], free_holds: list[float]) -> dict[str, Any]:
-    valid = [t for t in trials if isinstance(t.get("derived"), dict)]
-    point_count = sum(len(t.get("points", [])) for t in valid)
-    feature_stats = {name: stats([float(t["derived"].get(name, 0) or 0) for t in valid]) for name in FEATURES}
+    valid = [trial for trial in trials if isinstance(trial.get("derived"), dict)]
+    point_count = sum(len(trial.get("points", [])) for trial in valid)
+    feature_stats = {
+        name: stats([float(trial["derived"].get(name, 0) or 0) for trial in valid])
+        for name in FEATURES
+    }
     feature_stats["click_hold_ms_free"] = stats(free_holds)
+
+    overshoots = [float(trial["derived"].get("overshoot_px", 0) or 0) for trial in valid]
+    positive_overshoots = [value for value in overshoots if value > 0.25]
+    overshoot_rate = len(positive_overshoots) / max(len(valid), 1)
+
     coverage = min(1.0, len(valid) / 300)
     route_depth = min(1.0, point_count / 10_000)
-    contexts = {(round(float(t["derived"].get("distance_px", 0)) / 100), int(t["target"].get("radius", 0))) for t in valid}
+    contexts = {
+        (round(float(trial["derived"].get("distance_px", 0)) / 100), int(trial["target"].get("radius", 0)))
+        for trial in valid
+    }
     context = min(1.0, len(contexts) / 20)
-    misses = sum(len(t.get("miss_clicks", [])) for t in valid)
+    misses = sum(len(trial.get("miss_clicks", [])) for trial in valid)
     templates = [template for trial in valid if (template := _route_template(trial)) is not None]
     quality = round(100 * (0.50 * coverage + 0.30 * route_depth + 0.20 * context))
+
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "quality_percent": min(100, quality),
         "trial_count": len(valid),
         "point_count": point_count,
         "miss_count": misses,
+        "overshoot_rate": round(overshoot_rate, 4),
+        "overshoot_positive": stats(positive_overshoots),
         "features": feature_stats,
         "route_templates": templates[-500:],
         "created_at": datetime.now().isoformat(),
