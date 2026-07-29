@@ -32,7 +32,7 @@ if errorlevel 1 goto :error
 python -m pip install -r requirements.txt
 if errorlevel 1 goto :error
 
-python run_fixed.py
+python run_v06.py
 exit /b 0
 
 :error
