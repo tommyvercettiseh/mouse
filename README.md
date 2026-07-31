@@ -1,42 +1,37 @@
-# AI Mouse Lab v0.6.0
+# AI Mouse Lab v0.7.0
 
 Eén lokale Windows-hub voor het opbouwen van een persoonlijk muisprofiel en een blinde mens-versus-profielbenchmark.
 
 ## Hoofdflow
 
 1. Neem Aim Lab-sessies op in de vaste virtuele arena van 1920 × 1080.
-2. Bouw het masterprofiel opnieuw.
-3. Open **Benchmark**.
-4. Kies met de slider 10 tot 100 targets.
-5. Speel zelf de targetreeks.
-6. Bekijk A en B direct side-by-side op dezelfde Benchmark-pagina.
-7. A wordt paars weergegeven en B groen; beide replays lopen synchroon.
-8. Upload alleen `A.json` en `B.json` voor de blinde beoordeling.
-9. Open `private_answer.json` pas na de keuze.
+2. Kies **Normale opname** voor trainingsdata of **Detectietest** voor technische experimenten.
+3. Bouw het masterprofiel opnieuw.
+4. Open **Benchmark**, speel zelf en bekijk A en B synchroon op één arena.
+5. Upload alleen `A.json` en `B.json` voor een blinde beoordeling.
 
-## v0.6.0
+## Persoonlijk contextmodel
 
-- vaste virtuele arena van 1920 × 1080 voor Aim Lab en Benchmark
-- automatische schaal naar het beschikbare venster
-- target-slider van 10 tot 100 targets
-- Benchmark setup, run en replay in één hoofdflow
-- side-by-side replay met gedeelde bediening
-- persoonlijkere generator met begrensde bochtigheid, overshoot en fouten
-- één consistente sessiestijl per gegenereerde benchmark
-- minder extreme zigzags en minder overdreven slechte routes
+Het profiel leert niet alleen algemene gemiddelden, maar verdeelt jouw gedrag over contexten op basis van:
 
-## Benchmarkmap
+- korte, middellange en lange bewegingen
+- kleine, middelgrote en grote targets
+- acht bewegingsrichtingen
+- reactietijd, bewegingstijd en klikvertraging
+- remstart, snelheid, versnelling en jerk
+- overshoot, correcties, entries/exits en misklikken
+- routevormen en klikpositie
 
-```text
-data/benchmarks/<sessie>/
-├── benchmark_plan.json
-├── human_private.json
-├── generated_private.json
-├── A.json
-├── B.json
-├── private_answer.json
-└── summary.json
-```
+Technische detectietests en onwaarschijnlijke recorderuitschieters worden niet gebruikt als normale trainingsdata. Het profiel bewaart aantallen en afwijsredenen zodat dit controleerbaar blijft.
+
+## Datakwaliteit
+
+Voor een sterk profiel zijn meerdere normale sessies nodig. Richtwaarde:
+
+- 200–300 geaccepteerde targets
+- meerdere sessies
+- verschillende afstanden, richtingen en targetgroottes
+- minimaal acht voorbeelden in de belangrijkste contexten
 
 ## Testen
 
@@ -48,6 +43,6 @@ python -m unittest discover -s tests -v
 
 - externe muisbesturing
 - cloudopslag
-- automatische classifier in de app
+- automatische classifier
 - heatmaps of video-export
 - neural network of diffusionmodel
