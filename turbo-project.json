@@ -1,1 +1,1 @@
-{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.2","category":"tool","notes":"Fullscreen 1920x1080 Aim Lab flow, stable single sampler loop, corrected hit testing and contextual personal motion model."}
+{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.4","category":"tool","notes":"Same-monitor fullscreen Aim Lab overlay with continuous trace rendering, stable single sampler loop, corrected hit testing and contextual personal motion model."}
