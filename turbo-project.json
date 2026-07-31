@@ -1,1 +1,1 @@
-{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.4.0","category":"tool","notes":"Single-window Windows hub with complete blind benchmark flow."}
+{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.0","category":"tool","notes":"Contextual personal motion model with data-quality filtering, recording modes and synchronized A/B replay."}
