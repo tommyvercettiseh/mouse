@@ -1,1 +1,1 @@
-{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.0","category":"tool","notes":"Contextual personal motion model with data-quality filtering, recording modes and synchronized A/B replay."}
+{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.2","category":"tool","notes":"Fullscreen 1920x1080 Aim Lab flow, stable single sampler loop, corrected hit testing and contextual personal motion model."}
