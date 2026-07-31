@@ -8,6 +8,7 @@ from ai_mouse_lab.v06 import apply_patch
 from ai_mouse_lab.v06_hotfix import apply_hotfix
 from ai_mouse_lab.v061 import apply_patch as apply_v061_patch
 from ai_mouse_lab.v062 import apply_patch as apply_v062_patch
+from ai_mouse_lab.v063 import apply_patch as apply_v063_patch
 
 
 def main() -> None:
@@ -15,6 +16,7 @@ def main() -> None:
     apply_hotfix(original_app)
     apply_v061_patch(original_app)
     apply_v062_patch(original_app)
+    apply_v063_patch(original_app)
     ctk.set_appearance_mode("dark")
     original_app.App().mainloop()
 
