@@ -4,6 +4,7 @@ import math
 from datetime import datetime
 from typing import Any
 
+from .click_model import build_click_model
 from .metrics import stats
 from .schema import SCHEMA_VERSION, normalize_trials
 
@@ -193,5 +194,6 @@ def build_personal_profile(trials: list[dict[str, Any]], free_holds: list[float]
         "features": feature_stats,
         "contexts": contexts,
         "route_templates": templates[-500:],
+        "click_model": build_click_model(accepted),
         "created_at": datetime.now().isoformat(),
     }
