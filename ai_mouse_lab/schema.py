@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, Iterable
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 VIRTUAL_WIDTH = 1920.0
 VIRTUAL_HEIGHT = 1080.0
 
@@ -55,9 +55,10 @@ def normalize_xy(value: Any, *, radius: float | None = None, index: int | None =
 
 def normalize_click(value: Any) -> dict[str, float]:
     if isinstance(value, dict):
+        down = _number(value.get("down_t_ms"))
         return {
-            "down_t_ms": _number(value.get("down_t_ms")),
-            "up_t_ms": _number(value.get("up_t_ms")),
+            "down_t_ms": down,
+            "up_t_ms": _number(value.get("up_t_ms"), down),
             "x": _number(value.get("x")),
             "y": _number(value.get("y")),
         }
@@ -95,7 +96,7 @@ def normalize_trial(value: Any, index: int = 0) -> dict[str, Any] | None:
         **raw,
         "schema_version": SCHEMA_VERSION,
         "capture_mode": str(raw.get("capture_mode", "normal")),
-        "coordinate_space": str(raw.get("coordinate_space", "virtual_1920x1080")),
+        "coordinate_space": "virtual_1920x1080",
         "target": normalize_xy(target_raw, radius=radius, index=index),
         "start": normalize_xy(raw.get("start", {})),
         "points": points,
@@ -103,6 +104,15 @@ def normalize_trial(value: Any, index: int = 0) -> dict[str, Any] | None:
         "miss_clicks": misses,
         "derived": derived,
     }
+
+
+def normalize_trials(values: Iterable[Any]) -> list[dict[str, Any]]:
+    output: list[dict[str, Any]] = []
+    for index, value in enumerate(values):
+        trial = normalize_trial(value, index)
+        if trial is not None:
+            output.append(trial)
+    return output
 
 
 def normalize_session(value: Any) -> dict[str, Any]:
@@ -115,18 +125,33 @@ def normalize_session(value: Any) -> dict[str, Any]:
     else:
         base = {}
         source_trials = []
-    trials: list[dict[str, Any]] = []
-    if isinstance(source_trials, list):
-        for index, trial in enumerate(source_trials):
-            normalized = normalize_trial(trial, index)
-            if normalized is not None:
-                trials.append(normalized)
-    base.update({
-        "schema_version": SCHEMA_VERSION,
-        "coordinate_space": "virtual_1920x1080",
-        "width": VIRTUAL_WIDTH,
-        "height": VIRTUAL_HEIGHT,
-        "trials": trials,
-        "trial_count": len(trials),
-    })
+    trials = normalize_trials(source_trials if isinstance(source_trials, list) else [])
+    base.update(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "coordinate_space": "virtual_1920x1080",
+            "width": VIRTUAL_WIDTH,
+            "height": VIRTUAL_HEIGHT,
+            "trials": trials,
+            "trial_count": len(trials),
+        }
+    )
     return base
+
+
+def validate_trial(trial: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(trial.get("target"), dict):
+        errors.append("target must be an object")
+    if not isinstance(trial.get("start"), dict):
+        errors.append("start must be an object")
+    points = trial.get("points")
+    if not isinstance(points, list) or len(points) < 2:
+        errors.append("at least two points are required")
+    elif any(not isinstance(point, dict) for point in points):
+        errors.append("every point must be an object")
+    if not isinstance(trial.get("click"), dict):
+        errors.append("click must be an object")
+    if not isinstance(trial.get("derived"), dict):
+        errors.append("derived must be an object")
+    return errors
