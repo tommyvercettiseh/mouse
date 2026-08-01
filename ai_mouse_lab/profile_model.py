@@ -5,8 +5,9 @@ from datetime import datetime
 from typing import Any
 
 from .click_model import build_click_model
-from .metrics import stats
-from .schema import SCHEMA_VERSION, normalize_trials
+from .metrics import movement_points, stats
+from .models import normalize_trials
+from .schema import SCHEMA_VERSION
 
 FEATURES = (
     "reaction_ms",
@@ -79,7 +80,10 @@ def quality_reason(trial: dict[str, Any]) -> str | None:
             return "outside_arena"
         if previous is not None:
             dt = float(point.get("t_ms", 0)) - float(previous.get("t_ms", 0))
-            jump = math.hypot(x - float(previous.get("x", 0)), y - float(previous.get("y", 0)))
+            jump = math.hypot(
+                x - float(previous.get("x", 0)),
+                y - float(previous.get("y", 0)),
+            )
             if dt < 25 and jump > 600:
                 return "sample_jump"
         previous = point
@@ -88,59 +92,129 @@ def quality_reason(trial: dict[str, Any]) -> str | None:
 
 def _feature_stats(trials: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     return {
-        name: stats([float(trial["derived"].get(name, 0) or 0) for trial in trials])
+        name: stats(
+            [float(trial["derived"].get(name, 0) or 0) for trial in trials]
+        )
         for name in FEATURES
     }
 
 
-def _route_template(trial: dict[str, Any], max_points: int = 96) -> dict[str, Any] | None:
-    points = trial["points"]
+def _route_template(
+    trial: dict[str, Any],
+    max_points: int = 96,
+) -> dict[str, Any] | None:
     target = trial["target"]
     start = trial["start"]
-    if len(points) < 3:
+    click = trial["click"]
+    route = movement_points(trial["points"], click, start)
+    if len(route) < 3:
         return None
+
     sx, sy = float(start["x"]), float(start["y"])
     tx, ty = float(target["x"]), float(target["y"])
-    dx, dy = tx - sx, ty - sy
-    distance = math.hypot(dx, dy)
-    if distance < 3:
+    click_x, click_y = float(route[-1]["x"]), float(route[-1]["y"])
+
+    target_dx, target_dy = tx - sx, ty - sy
+    target_distance = math.hypot(target_dx, target_dy)
+    if target_distance < 3:
         return None
-    ux, uy = dx / distance, dy / distance
+    target_angle = math.atan2(target_dy, target_dx)
+
+    click_dx, click_dy = click_x - sx, click_y - sy
+    click_distance = math.hypot(click_dx, click_dy)
+    if click_distance < 3:
+        return None
+    ux, uy = click_dx / click_distance, click_dy / click_distance
     perpendicular_x, perpendicular_y = -uy, ux
-    stride = max(1, math.ceil(len(points) / max_points))
-    selected = points[::stride]
-    if selected[-1] != points[-1]:
-        selected.append(points[-1])
-    duration_ms = max(float(selected[-1]["t_ms"]), 1.0)
-    normalized_points: list[dict[str, float]] = []
+
+    derived = trial["derived"]
+    reaction_ms = max(0.0, float(derived.get("reaction_ms", 0) or 0))
+    click_down_ms = max(
+        reaction_ms + 1.0,
+        float(click.get("down_t_ms", route[-1]["t_ms"]) or route[-1]["t_ms"]),
+    )
+    movement_duration_ms = max(1.0, click_down_ms - reaction_ms)
+
+    active = [point for point in route if float(point["t_ms"]) >= reaction_ms]
+    if not active:
+        active = [route[-1]]
+    stride = max(1, math.ceil(len(active) / max_points))
+    selected = active[::stride]
+    if selected[-1] != active[-1]:
+        selected.append(active[-1])
+
+    normalized_points: list[dict[str, float]] = [
+        {"t": 0.0, "along": 0.0, "side": 0.0}
+    ]
     for point in selected:
         relative_x = float(point["x"]) - sx
         relative_y = float(point["y"]) - sy
-        normalized_points.append(
-            {
-                "t": round(float(point["t_ms"]) / duration_ms, 6),
-                "along": round((relative_x * ux + relative_y * uy) / distance, 6),
-                "side": round((relative_x * perpendicular_x + relative_y * perpendicular_y) / distance, 6),
-            }
+        normalized_t = max(
+            0.0,
+            min(
+                1.0,
+                (float(point["t_ms"]) - reaction_ms) / movement_duration_ms,
+            ),
         )
-    derived = trial["derived"]
-    angle = math.atan2(dy, dx)
+        normalized = {
+            "t": round(normalized_t, 6),
+            "along": round(
+                (relative_x * ux + relative_y * uy) / click_distance,
+                6,
+            ),
+            "side": round(
+                (
+                    relative_x * perpendicular_x
+                    + relative_y * perpendicular_y
+                )
+                / click_distance,
+                6,
+            ),
+        }
+        if normalized["t"] == normalized_points[-1]["t"]:
+            normalized_points[-1] = normalized
+        else:
+            normalized_points.append(normalized)
+
+    if normalized_points[-1]["t"] < 1.0:
+        normalized_points.append({"t": 1.0, "along": 1.0, "side": 0.0})
+    else:
+        normalized_points[-1] = {"t": 1.0, "along": 1.0, "side": 0.0}
+
     return {
-        "context": context_key(distance, float(target["radius"]), angle),
-        "distance_px": round(distance, 3),
+        "shape_version": 1,
+        "context": context_key(
+            target_distance,
+            float(target["radius"]),
+            target_angle,
+        ),
+        "distance_px": round(target_distance, 3),
+        "click_distance_px": round(click_distance, 3),
         "radius": float(target["radius"]),
-        "angle": round(angle, 6),
-        "duration_ms": round(duration_ms, 3),
-        "reaction_ms": round(float(derived.get("reaction_ms", 0) or 0), 3),
-        "click_delay_ms": round(float(derived.get("click_delay_ms", 0) or 0), 3),
+        "angle": round(target_angle, 6),
+        "duration_ms": round(movement_duration_ms, 3),
+        "reaction_ms": round(reaction_ms, 3),
+        "click_delay_ms": round(
+            float(derived.get("click_delay_ms", 0) or 0),
+            3,
+        ),
         "hold_ms": round(float(derived.get("hold_ms", 0) or 0), 3),
-        "path_efficiency": round(float(derived.get("path_efficiency", 0) or 0), 4),
-        "slowdown_ratio": round(float(derived.get("slowdown_ratio", 0) or 0), 4),
+        "path_efficiency": round(
+            float(derived.get("path_efficiency", 0) or 0),
+            4,
+        ),
+        "slowdown_ratio": round(
+            float(derived.get("slowdown_ratio", 0) or 0),
+            4,
+        ),
         "points": normalized_points,
     }
 
 
-def build_personal_profile(trials: list[dict[str, Any]], free_holds: list[float]) -> dict[str, Any]:
+def build_personal_profile(
+    trials: list[dict[str, Any]],
+    free_holds: list[float],
+) -> dict[str, Any]:
     normalized = normalize_trials(trials)
     accepted: list[dict[str, Any]] = []
     rejected_reasons: dict[str, int] = {}
@@ -156,23 +230,57 @@ def build_personal_profile(trials: list[dict[str, Any]], free_holds: list[float]
         start = trial["start"]
         target = trial["target"]
         distance = float(trial["derived"].get("distance_px", 0) or 0)
-        angle = math.atan2(float(target["y"]) - float(start["y"]), float(target["x"]) - float(start["x"]))
-        groups.setdefault(context_key(distance, float(target["radius"]), angle), []).append(trial)
+        angle = math.atan2(
+            float(target["y"]) - float(start["y"]),
+            float(target["x"]) - float(start["x"]),
+        )
+        groups.setdefault(
+            context_key(distance, float(target["radius"]), angle),
+            [],
+        ).append(trial)
 
     contexts: dict[str, dict[str, Any]] = {}
     for key, group in groups.items():
         contexts[key] = {
             "trial_count": len(group),
             "features": _feature_stats(group),
-            "overshoot_rate": round(sum(float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25 for trial in group) / len(group), 4),
-            "correction_rate": round(sum(float(trial["derived"].get("correction_count", 0) or 0) > 0 for trial in group) / len(group), 4),
-            "miss_rate": round(sum(bool(trial.get("miss_clicks")) for trial in group) / len(group), 4),
+            "overshoot_rate": round(
+                sum(
+                    float(trial["derived"].get("overshoot_px", 0) or 0)
+                    > 0.25
+                    for trial in group
+                )
+                / len(group),
+                4,
+            ),
+            "correction_rate": round(
+                sum(
+                    float(trial["derived"].get("correction_count", 0) or 0)
+                    > 0
+                    for trial in group
+                )
+                / len(group),
+                4,
+            ),
+            "miss_rate": round(
+                sum(bool(trial.get("miss_clicks")) for trial in group)
+                / len(group),
+                4,
+            ),
         }
 
-    templates = [template for trial in accepted if (template := _route_template(trial)) is not None]
+    templates = [
+        template
+        for trial in accepted
+        if (template := _route_template(trial)) is not None
+    ]
     feature_stats = _feature_stats(accepted)
     feature_stats["click_hold_ms_free"] = stats(free_holds)
-    context_depth = sum(1 for context in contexts.values() if context["trial_count"] >= 8)
+    context_depth = sum(
+        1
+        for context in contexts.values()
+        if context["trial_count"] >= 8
+    )
     quality = round(
         100 * min(1.0, len(accepted) / 300) * 0.42
         + 100 * min(1.0, len(templates) / 220) * 0.25
@@ -186,9 +294,16 @@ def build_personal_profile(trials: list[dict[str, Any]], free_holds: list[float]
         "rejected_trial_count": len(normalized) - len(accepted),
         "rejected_reasons": rejected_reasons,
         "point_count": sum(len(trial["points"]) for trial in accepted),
-        "miss_count": sum(len(trial.get("miss_clicks", [])) for trial in accepted),
+        "miss_count": sum(
+            len(trial.get("miss_clicks", []))
+            for trial in accepted
+        ),
         "overshoot_rate": round(
-            sum(float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25 for trial in accepted) / max(1, len(accepted)),
+            sum(
+                float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25
+                for trial in accepted
+            )
+            / max(1, len(accepted)),
             4,
         ),
         "features": feature_stats,
