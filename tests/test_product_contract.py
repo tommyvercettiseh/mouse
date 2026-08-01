@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
+import app
 from ai_mouse_lab import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +16,13 @@ class ProductContractTests(unittest.TestCase):
         self.assertNotIn("app_v1", source)
         self.assertNotIn("LegacyApp", source)
         self.assertFalse((ROOT / "app_v1.py").exists())
+        self.assertEqual("ai_mouse_lab.application", app.App.__module__)
+
+    def test_historical_patch_modules_are_not_in_worktree(self):
+        patch_files = sorted(
+            path.name for path in (ROOT / "ai_mouse_lab").glob("v0*.py")
+        )
+        self.assertEqual([], patch_files)
 
     def test_all_version_sources_match(self):
         version_file = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
