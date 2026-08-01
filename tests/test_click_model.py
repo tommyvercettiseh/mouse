@@ -46,19 +46,74 @@ class ClickModelTests(unittest.TestCase):
         self.assertGreater(average_distance, 8.0)
         self.assertGreater(sum(x for x, _ in samples) / len(samples), 8.0)
 
-    def test_generator_uses_click_model(self):
-        profile = build_personal_profile([make_trial(112.0, 104.0) for _ in range(30)], [])
+    def test_generator_uses_click_model_and_finishes_at_click(self):
+        profile = build_personal_profile(
+            [make_trial(112.0, 104.0) for _ in range(30)],
+            [],
+        )
         plan = {
             "seed": 1,
             "targets": [
-                {"index": index, "start": [0.0, 100.0], "target": [100.0, 100.0], "radius": 20.0}
+                {
+                    "index": index,
+                    "start": [0.0, 100.0],
+                    "target": [100.0, 100.0],
+                    "radius": 20.0,
+                }
                 for index in range(20)
             ],
         }
         generated = simulate(plan, profile, seed=7)
-        offsets = [trial["click"]["x"] - trial["target"]["x"] for trial in generated]
+        offsets = [
+            trial["click"]["x"] - trial["target"]["x"]
+            for trial in generated
+        ]
         self.assertGreater(sum(offsets) / len(offsets), 8.0)
-        self.assertTrue(all(math.hypot(trial["click"]["x"] - 100.0, trial["click"]["y"] - 100.0) <= 19.3 for trial in generated))
+        self.assertTrue(
+            all(
+                math.hypot(
+                    trial["click"]["x"] - 100.0,
+                    trial["click"]["y"] - 100.0,
+                )
+                <= 19.3
+                for trial in generated
+            )
+        )
+        for trial in generated:
+            self.assertAlmostEqual(trial["points"][-1]["x"], trial["click"]["x"], places=3)
+            self.assertAlmostEqual(trial["points"][-1]["y"], trial["click"]["y"], places=3)
+
+    def test_generated_miss_has_visible_recovery_route(self):
+        profile = build_personal_profile(
+            [make_trial(112.0, 104.0) for _ in range(40)],
+            [],
+        )
+        profile["miss_count"] = 100
+        profile["trial_count"] = 100
+        plan = {
+            "seed": 3,
+            "targets": [
+                {
+                    "index": index,
+                    "start": [0.0, 100.0],
+                    "target": [100.0, 100.0],
+                    "radius": 20.0,
+                }
+                for index in range(100)
+            ],
+        }
+        generated = simulate(plan, profile, seed=11)
+        missed = [trial for trial in generated if trial["miss_clicks"]]
+        self.assertTrue(missed)
+        for trial in missed:
+            miss = trial["miss_clicks"][0]
+            self.assertGreater(
+                math.hypot(miss["x"] - 100.0, miss["y"] - 100.0),
+                20.0,
+            )
+            self.assertAlmostEqual(trial["points"][-1]["x"], trial["click"]["x"], places=3)
+            self.assertAlmostEqual(trial["points"][-1]["y"], trial["click"]["y"], places=3)
+            self.assertGreater(trial["click"]["down_t_ms"], miss["up_t_ms"])
 
 
 if __name__ == "__main__":
