@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import Any
 
 from .metrics import click_position, derive_trial
@@ -25,17 +24,7 @@ def _is_current_trial(value: Any) -> bool:
 
 
 def _click_is_resolved(trial: dict[str, Any]) -> bool:
-    click = trial.get("click", {})
-    points = trial.get("points", [])
-    if not isinstance(click, dict) or not isinstance(points, list):
-        return False
-    try:
-        resolved_x, resolved_y = click_position(points, click)
-        return math.isclose(float(click["x"]), resolved_x, abs_tol=0.001) and math.isclose(
-            float(click["y"]), resolved_y, abs_tol=0.001
-        )
-    except (KeyError, TypeError, ValueError):
-        return False
+    return trial.get("click_position_source") == "mouse_down"
 
 
 def _resolve_click(trial: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -48,6 +37,7 @@ def _resolve_click(trial: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     resolved_x, resolved_y = click_position(points, click)
     output = dict(trial)
     output["click"] = {**click, "x": resolved_x, "y": resolved_y}
+    output["click_position_source"] = "mouse_down"
     return output, True
 
 
@@ -76,8 +66,9 @@ def normalize_trials(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
 
-    # Replay requests the same current-schema trials every frame. Returning the
-    # existing list avoids repeated deep copies and metric recalculation.
+    # Replay requests the same current-schema trials every frame. The explicit
+    # mouse-down marker makes this a constant-time schema check instead of a
+    # repeated scan through every route point.
     if value and all(
         _is_current_trial(trial)
         and _click_is_resolved(trial)
