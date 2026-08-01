@@ -8,20 +8,20 @@ from typing import Any
 def percentile(values: list[float], p: float) -> float:
     if not values:
         return 0.0
-    ordered = sorted(float(v) for v in values)
+    ordered = sorted(float(value) for value in values)
     if len(ordered) == 1:
         return ordered[0]
-    idx = (len(ordered) - 1) * p
-    lo, hi = math.floor(idx), math.ceil(idx)
-    if lo == hi:
-        return ordered[lo]
-    fraction = idx - lo
-    return ordered[lo] * (1 - fraction) + ordered[hi] * fraction
+    index = (len(ordered) - 1) * p
+    lower, upper = math.floor(index), math.ceil(index)
+    if lower == upper:
+        return ordered[lower]
+    fraction = index - lower
+    return ordered[lower] * (1.0 - fraction) + ordered[upper] * fraction
 
 
 def stats(values: list[float]) -> dict[str, float]:
     if not values:
-        return {k: 0.0 for k in ("mean", "median", "stdev", "p10", "p90", "min", "max")}
+        return {key: 0.0 for key in ("mean", "median", "stdev", "p10", "p90", "min", "max")}
     return {
         "mean": round(statistics.fmean(values), 3),
         "median": round(statistics.median(values), 3),
@@ -34,103 +34,154 @@ def stats(values: list[float]) -> dict[str, float]:
 
 
 def smooth_points(points: list[dict[str, Any]], window: int = 5) -> list[dict[str, float]]:
-    if window < 1 or len(points) <= 2:
-        return [{"t_ms": float(p["t_ms"]), "x": float(p["x"]), "y": float(p["y"])} for p in points]
+    source = [
+        {"t_ms": float(point["t_ms"]), "x": float(point["x"]), "y": float(point["y"])}
+        for point in points
+    ]
+    if window < 2 or len(source) <= 2:
+        return source
     radius = window // 2
-    out: list[dict[str, float]] = []
-    for i, point in enumerate(points):
-        lo, hi = max(0, i - radius), min(len(points), i + radius + 1)
-        chunk = points[lo:hi]
-        out.append({
-            "t_ms": float(point["t_ms"]),
-            "x": sum(float(p["x"]) for p in chunk) / len(chunk),
-            "y": sum(float(p["y"]) for p in chunk) / len(chunk),
+    output: list[dict[str, float]] = []
+    for index, point in enumerate(source):
+        lower = max(0, index - radius)
+        upper = min(len(source), index + radius + 1)
+        chunk = source[lower:upper]
+        output.append({
+            "t_ms": point["t_ms"],
+            "x": sum(item["x"] for item in chunk) / len(chunk),
+            "y": sum(item["y"] for item in chunk) / len(chunk),
         })
-    return out
+    return output
 
 
 def _densify(points: list[dict[str, Any]], max_step_px: float) -> list[dict[str, float]]:
-    """Interpolate long sampled segments so a fast pass through a target is not missed."""
-    source = [{"t_ms": float(p["t_ms"]), "x": float(p["x"]), "y": float(p["y"])} for p in points]
+    source = [
+        {"t_ms": float(point["t_ms"]), "x": float(point["x"]), "y": float(point["y"])}
+        for point in points
+    ]
     if len(source) < 2:
         return source
     dense = [source[0]]
-    for a, b in zip(source, source[1:]):
-        distance = math.hypot(b["x"] - a["x"], b["y"] - a["y"])
+    for first, second in zip(source, source[1:]):
+        distance = math.hypot(second["x"] - first["x"], second["y"] - first["y"])
         steps = max(1, int(math.ceil(distance / max(max_step_px, 1.0))))
         for step in range(1, steps + 1):
             fraction = step / steps
             dense.append({
-                "t_ms": a["t_ms"] + (b["t_ms"] - a["t_ms"]) * fraction,
-                "x": a["x"] + (b["x"] - a["x"]) * fraction,
-                "y": a["y"] + (b["y"] - a["y"]) * fraction,
+                "t_ms": first["t_ms"] + (second["t_ms"] - first["t_ms"]) * fraction,
+                "x": first["x"] + (second["x"] - first["x"]) * fraction,
+                "y": first["y"] + (second["y"] - first["y"]) * fraction,
             })
     return dense
 
 
-def derive_trial(target: dict[str, float], start: dict[str, float], points: list[dict[str, Any]], click: dict[str, Any]) -> dict[str, Any]:
+def _kinematics(points: list[dict[str, float]]) -> tuple[list[dict[str, float]], list[dict[str, float]], list[dict[str, float]], float]:
+    velocities: list[dict[str, float]] = []
+    accelerations: list[dict[str, float]] = []
+    jerks: list[dict[str, float]] = []
+    path_length = 0.0
+
+    for first, second in zip(points, points[1:]):
+        dt_s = max(0.001, (second["t_ms"] - first["t_ms"]) / 1000.0)
+        dx = second["x"] - first["x"]
+        dy = second["y"] - first["y"]
+        distance = math.hypot(dx, dy)
+        path_length += distance
+        velocities.append({
+            "t_ms": second["t_ms"],
+            "speed_px_s": distance / dt_s,
+            "vx_px_s": dx / dt_s,
+            "vy_px_s": dy / dt_s,
+            "x": second["x"],
+            "y": second["y"],
+        })
+
+    for first, second in zip(velocities, velocities[1:]):
+        dt_s = max(0.001, (second["t_ms"] - first["t_ms"]) / 1000.0)
+        accelerations.append({
+            "t_ms": second["t_ms"],
+            "accel_px_s2": (second["speed_px_s"] - first["speed_px_s"]) / dt_s,
+        })
+
+    for first, second in zip(accelerations, accelerations[1:]):
+        dt_s = max(0.001, (second["t_ms"] - first["t_ms"]) / 1000.0)
+        jerks.append({
+            "t_ms": second["t_ms"],
+            "jerk_px_s3": (second["accel_px_s2"] - first["accel_px_s2"]) / dt_s,
+        })
+
+    return velocities, accelerations, jerks, path_length
+
+
+def _mean(values: list[float]) -> float:
+    return statistics.fmean(values) if values else 0.0
+
+
+def derive_trial(
+    target: dict[str, float],
+    start: dict[str, float],
+    points: list[dict[str, Any]],
+    click: dict[str, Any],
+) -> dict[str, Any]:
     if len(points) < 2:
         raise ValueError("At least two route points are required")
 
     clean = smooth_points(points)
-    tx, ty, radius = float(target["x"]), float(target["y"]), float(target["radius"])
-    sx, sy = float(start["x"]), float(start["y"])
-    dx, dy = tx - sx, ty - sy
-    straight = math.hypot(dx, dy)
-    ux, uy = (dx / straight, dy / straight) if straight > 0 else (0.0, 0.0)
+    target_x = float(target["x"])
+    target_y = float(target["y"])
+    radius = float(target["radius"])
+    start_x = float(start["x"])
+    start_y = float(start["y"])
 
-    path = 0.0
-    speeds: list[tuple[float, float]] = []
-    accelerations: list[tuple[float, float]] = []
-    for a, b in zip(clean, clean[1:]):
-        dt = max(0.001, (b["t_ms"] - a["t_ms"]) / 1000.0)
-        dist = math.hypot(b["x"] - a["x"], b["y"] - a["y"])
-        path += dist
-        speeds.append((b["t_ms"], dist / dt))
-    for a, b in zip(speeds, speeds[1:]):
-        dt = max(0.001, (b[0] - a[0]) / 1000.0)
-        accelerations.append((b[0], (b[1] - a[1]) / dt))
-    jerks: list[float] = []
-    for a, b in zip(accelerations, accelerations[1:]):
-        dt = max(0.001, (b[0] - a[0]) / 1000.0)
-        jerks.append((b[1] - a[1]) / dt)
+    direction_x = target_x - start_x
+    direction_y = target_y - start_y
+    straight_distance = math.hypot(direction_x, direction_y)
+    unit_x, unit_y = (
+        (direction_x / straight_distance, direction_y / straight_distance)
+        if straight_distance > 0
+        else (0.0, 0.0)
+    )
 
-    first_move_ms = 0.0
+    velocities, accelerations, jerks, path_length = _kinematics(clean)
+
+    reaction_ms = 0.0
     for point in clean:
-        if math.hypot(point["x"] - sx, point["y"] - sy) >= 3.0:
-            first_move_ms = point["t_ms"]
+        if math.hypot(point["x"] - start_x, point["y"] - start_y) >= 3.0:
+            reaction_ms = point["t_ms"]
             break
 
-    # Entry detection uses lightly processed raw segments. This catches a cursor that
-    # crosses the complete circle between two recorder samples.
     motion = _densify(points, max(2.0, radius / 4.0))
-    inside = [math.hypot(p["x"] - tx, p["y"] - ty) <= radius for p in motion]
+    inside = [math.hypot(point["x"] - target_x, point["y"] - target_y) <= radius for point in motion]
     click_x = float(click.get("x", motion[-1]["x"]))
     click_y = float(click.get("y", motion[-1]["y"]))
-    if math.hypot(click_x - tx, click_y - ty) <= radius and not inside[-1]:
+    if math.hypot(click_x - target_x, click_y - target_y) <= radius and not inside[-1]:
         inside[-1] = True
 
-    first_entry_idx = next((i for i, value in enumerate(inside) if value), None)
-    first_entry_ms = motion[first_entry_idx]["t_ms"] if first_entry_idx is not None else None
-    entry_count = sum(1 for prev, cur in zip(inside, inside[1:]) if not prev and cur)
-    exit_count = sum(1 for prev, cur in zip(inside, inside[1:]) if prev and not cur)
+    first_entry_index = next((index for index, value in enumerate(inside) if value), None)
+    first_entry_ms = motion[first_entry_index]["t_ms"] if first_entry_index is not None else None
+    entry_count = sum(1 for previous, current in zip(inside, inside[1:]) if not previous and current)
+    exit_count = sum(1 for previous, current in zip(inside, inside[1:]) if previous and not current)
 
     radial_overshoot = 0.0
-    if first_entry_idx is not None:
-        for point in motion[first_entry_idx:]:
-            radial_overshoot = max(radial_overshoot, max(0.0, math.hypot(point["x"] - tx, point["y"] - ty) - radius))
+    if first_entry_index is not None:
+        radial_overshoot = max(
+            max(0.0, math.hypot(point["x"] - target_x, point["y"] - target_y) - radius)
+            for point in motion[first_entry_index:]
+        )
 
-    # Directional overshoot: pass the far edge of the target, then reverse toward it.
     directional_overshoot = 0.0
-    if straight > 0 and motion:
-        projections = [(p["x"] - sx) * ux + (p["y"] - sy) * uy for p in motion]
+    if straight_distance > 0 and motion:
+        projections = [
+            (point["x"] - start_x) * unit_x + (point["y"] - start_y) * unit_y
+            for point in motion
+        ]
         peak_index = max(range(len(projections)), key=projections.__getitem__)
-        peak = projections[peak_index]
-        far_edge = straight + radius
-        later_min = min(projections[peak_index:])
-        reversal = peak - later_min
-        if peak > far_edge and reversal >= max(2.0, radius * 0.12):
-            directional_overshoot = peak - far_edge
+        peak_projection = projections[peak_index]
+        far_edge = straight_distance + radius
+        later_minimum = min(projections[peak_index:])
+        reversal = peak_projection - later_minimum
+        if peak_projection > far_edge and reversal >= max(2.0, radius * 0.12):
+            directional_overshoot = peak_projection - far_edge
 
     overshoot = max(radial_overshoot, directional_overshoot)
     correction_count = max(0, entry_count - 1)
@@ -139,26 +190,71 @@ def derive_trial(target: dict[str, float], start: dict[str, float], points: list
 
     click_down_ms = float(click.get("down_t_ms") or clean[-1]["t_ms"])
     click_up_ms = float(click.get("up_t_ms") or click_down_ms)
-    braking_start_ms = max(speeds, key=lambda item: item[1])[0] if speeds else 0.0
+
+    peak_speed_index = max(range(len(velocities)), key=lambda index: velocities[index]["speed_px_s"]) if velocities else 0
+    peak_speed = velocities[peak_speed_index]["speed_px_s"] if velocities else 0.0
+    peak_speed_time_ms = velocities[peak_speed_index]["t_ms"] if velocities else 0.0
+
+    braking_start_index = peak_speed_index
+    if velocities:
+        threshold = peak_speed * 0.92
+        for index in range(peak_speed_index, len(velocities)):
+            following = velocities[index:min(len(velocities), index + 3)]
+            if following and all(item["speed_px_s"] <= threshold for item in following):
+                braking_start_index = index
+                break
+    braking_start_ms = velocities[braking_start_index]["t_ms"] if velocities else 0.0
+    braking_x = velocities[braking_start_index]["x"] if velocities else start_x
+    braking_y = velocities[braking_start_index]["y"] if velocities else start_y
+    braking_distance_px = math.hypot(target_x - braking_x, target_y - braking_y)
+    braking_duration_ms = max(0.0, click_down_ms - braking_start_ms)
+
+    approach_start_distance = max(radius * 3.0, 45.0)
+    approach_speeds = [
+        item["speed_px_s"]
+        for item in velocities
+        if math.hypot(item["x"] - target_x, item["y"] - target_y) <= approach_start_distance
+    ]
+    target_approach_speed = _mean(approach_speeds)
+
+    speed_at_entry = 0.0
+    if first_entry_ms is not None and velocities:
+        speed_at_entry = min(velocities, key=lambda item: abs(item["t_ms"] - first_entry_ms))["speed_px_s"]
+
+    early_speed_values = [item["speed_px_s"] for item in velocities[:max(1, len(velocities) // 3)]]
+    early_speed = _mean(early_speed_values)
+    slowdown_ratio = target_approach_speed / early_speed if early_speed > 0 else 0.0
+
+    peak_acceleration = max((abs(item["accel_px_s2"]) for item in accelerations), default=0.0)
+    peak_deceleration = max((-item["accel_px_s2"] for item in accelerations if item["accel_px_s2"] < 0), default=0.0)
+    peak_jerk = max((abs(item["jerk_px_s3"]) for item in jerks), default=0.0)
 
     return {
-        "reaction_ms": round(first_move_ms, 3),
+        "reaction_ms": round(reaction_ms, 3),
         "movement_time_ms": round(click_down_ms, 3),
         "first_entry_ms": round(first_entry_ms, 3) if first_entry_ms is not None else None,
         "click_delay_ms": round(max(0.0, click_down_ms - (first_entry_ms or click_down_ms)), 3),
         "hold_ms": round(max(0.0, click_up_ms - click_down_ms), 3),
-        "distance_px": round(straight, 3),
-        "path_length_px": round(path, 3),
-        "path_efficiency": round(straight / path, 4) if path > 0 else 0.0,
-        "click_error_px": round(math.hypot(click_x - tx, click_y - ty), 3),
-        "peak_speed_px_s": round(max((v for _, v in speeds), default=0.0), 3),
-        "peak_accel_px_s2": round(max((abs(v) for _, v in accelerations), default=0.0), 3),
-        "peak_jerk_px_s3": round(max((abs(v) for v in jerks), default=0.0), 3),
+        "distance_px": round(straight_distance, 3),
+        "path_length_px": round(path_length, 3),
+        "path_efficiency": round(straight_distance / path_length, 4) if path_length > 0 else 0.0,
+        "click_error_px": round(math.hypot(click_x - target_x, click_y - target_y), 3),
+        "peak_speed_px_s": round(peak_speed, 3),
+        "peak_speed_time_ms": round(peak_speed_time_ms, 3),
+        "peak_accel_px_s2": round(peak_acceleration, 3),
+        "peak_decel_px_s2": round(peak_deceleration, 3),
+        "peak_jerk_px_s3": round(peak_jerk, 3),
         "braking_start_ms": round(braking_start_ms, 3),
+        "braking_distance_px": round(braking_distance_px, 3),
+        "braking_duration_ms": round(braking_duration_ms, 3),
+        "target_approach_speed_px_s": round(target_approach_speed, 3),
+        "speed_at_entry_px_s": round(speed_at_entry, 3),
+        "slowdown_ratio": round(slowdown_ratio, 4),
         "overshoot_px": round(overshoot, 3),
+        "radial_overshoot_px": round(radial_overshoot, 3),
         "directional_overshoot_px": round(directional_overshoot, 3),
         "correction_count": correction_count,
         "entry_count": entry_count,
         "exit_count": exit_count,
-        "miss": first_entry_idx is None,
+        "miss": first_entry_index is None,
     }
