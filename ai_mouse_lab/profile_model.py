@@ -19,6 +19,10 @@ FEATURES = (
     "radial_overshoot_px",
     "directional_overshoot_px",
     "correction_count",
+    "approach_correction_count",
+    "approach_deviation_px",
+    "approach_correction_ms",
+    "approach_angle_change_deg",
     "entry_count",
     "exit_count",
     "path_efficiency",
@@ -91,12 +95,32 @@ def quality_reason(trial: dict[str, Any]) -> str | None:
 
 
 def _feature_stats(trials: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
-    return {
+    result = {
         name: stats(
             [float(trial["derived"].get(name, 0) or 0) for trial in trials]
         )
         for name in FEATURES
     }
+    positive_overshoots = [
+        float(trial["derived"].get("overshoot_px", 0) or 0)
+        for trial in trials
+        if float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25
+    ]
+    result["overshoot_positive_px"] = stats(positive_overshoots)
+    return result
+
+
+def _stationary_ratio(points: list[dict[str, float]]) -> float:
+    if len(points) < 2:
+        return 0.0
+    stationary = 0
+    for first, second in zip(points, points[1:]):
+        if math.hypot(
+            float(second["x"]) - float(first["x"]),
+            float(second["y"]) - float(first["y"]),
+        ) < 0.35:
+            stationary += 1
+    return stationary / max(1, len(points) - 1)
 
 
 def _route_template(
@@ -171,15 +195,36 @@ def _route_template(
                 6,
             ),
         }
-        if normalized["t"] == normalized_points[-1]["t"]:
-            normalized_points[-1] = normalized
-        else:
-            normalized_points.append(normalized)
+        previous = normalized_points[-1]
+        if normalized["t"] <= previous["t"]:
+            continue
+        spatial_change = math.hypot(
+            normalized["along"] - previous["along"],
+            normalized["side"] - previous["side"],
+        )
+        if spatial_change < 0.0009 and normalized["t"] - previous["t"] < 0.075:
+            continue
+        normalized_points.append(normalized)
 
+    if len(normalized_points) < 3:
+        return None
     if normalized_points[-1]["t"] < 1.0:
         normalized_points.append({"t": 1.0, "along": 1.0, "side": 0.0})
     else:
         normalized_points[-1] = {"t": 1.0, "along": 1.0, "side": 0.0}
+
+    efficiency = float(derived.get("path_efficiency", 0) or 0)
+    stationary_ratio = _stationary_ratio(active)
+    max_side_ratio = max(abs(point["side"]) for point in normalized_points)
+    min_along_ratio = min(point["along"] for point in normalized_points)
+    max_along_ratio = max(point["along"] for point in normalized_points)
+    quality = 1.0
+    quality -= max(0.0, 0.78 - efficiency) * 1.7
+    quality -= min(0.35, stationary_ratio * 0.70)
+    quality -= max(0.0, max_side_ratio - 0.22) * 1.8
+    quality -= max(0.0, -0.18 - min_along_ratio) * 1.2
+    quality -= max(0.0, max_along_ratio - 1.35) * 1.2
+    quality = max(0.05, min(1.0, quality))
 
     return {
         "shape_version": 1,
@@ -199,14 +244,14 @@ def _route_template(
             3,
         ),
         "hold_ms": round(float(derived.get("hold_ms", 0) or 0), 3),
-        "path_efficiency": round(
-            float(derived.get("path_efficiency", 0) or 0),
-            4,
-        ),
+        "path_efficiency": round(efficiency, 4),
         "slowdown_ratio": round(
             float(derived.get("slowdown_ratio", 0) or 0),
             4,
         ),
+        "stationary_ratio": round(stationary_ratio, 4),
+        "max_side_ratio": round(max_side_ratio, 4),
+        "quality_score": round(quality, 4),
         "points": normalized_points,
     }
 
@@ -246,8 +291,7 @@ def build_personal_profile(
             "features": _feature_stats(group),
             "overshoot_rate": round(
                 sum(
-                    float(trial["derived"].get("overshoot_px", 0) or 0)
-                    > 0.25
+                    float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25
                     for trial in group
                 )
                 / len(group),
@@ -255,8 +299,7 @@ def build_personal_profile(
             ),
             "correction_rate": round(
                 sum(
-                    float(trial["derived"].get("correction_count", 0) or 0)
-                    > 0
+                    float(trial["derived"].get("correction_count", 0) or 0) > 0
                     for trial in group
                 )
                 / len(group),
@@ -286,6 +329,16 @@ def build_personal_profile(
         + 100 * min(1.0, len(templates) / 220) * 0.25
         + 100 * min(1.0, context_depth / 18) * 0.33
     )
+    trial_count = max(1, len(accepted))
+    miss_count = sum(len(trial.get("miss_clicks", [])) for trial in accepted)
+    overshoot_rate = sum(
+        float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25
+        for trial in accepted
+    ) / trial_count
+    correction_rate = sum(
+        float(trial["derived"].get("correction_count", 0) or 0) > 0
+        for trial in accepted
+    ) / trial_count
     return {
         "schema_version": SCHEMA_VERSION,
         "quality_percent": min(100, quality),
@@ -294,18 +347,10 @@ def build_personal_profile(
         "rejected_trial_count": len(normalized) - len(accepted),
         "rejected_reasons": rejected_reasons,
         "point_count": sum(len(trial["points"]) for trial in accepted),
-        "miss_count": sum(
-            len(trial.get("miss_clicks", []))
-            for trial in accepted
-        ),
-        "overshoot_rate": round(
-            sum(
-                float(trial["derived"].get("overshoot_px", 0) or 0) > 0.25
-                for trial in accepted
-            )
-            / max(1, len(accepted)),
-            4,
-        ),
+        "miss_count": miss_count,
+        "miss_rate": round(miss_count / trial_count, 4),
+        "overshoot_rate": round(overshoot_rate, 4),
+        "correction_rate": round(correction_rate, 4),
         "features": feature_stats,
         "contexts": contexts,
         "route_templates": templates[-500:],
