@@ -4,6 +4,8 @@ import math
 import statistics
 from typing import Any
 
+from .braking import analyze_braking
+
 
 def percentile(values: list[float], p: float) -> float:
     if not values:
@@ -46,11 +48,13 @@ def smooth_points(points: list[dict[str, Any]], window: int = 5) -> list[dict[st
         lower = max(0, index - radius)
         upper = min(len(source), index + radius + 1)
         chunk = source[lower:upper]
-        output.append({
-            "t_ms": point["t_ms"],
-            "x": sum(item["x"] for item in chunk) / len(chunk),
-            "y": sum(item["y"] for item in chunk) / len(chunk),
-        })
+        output.append(
+            {
+                "t_ms": point["t_ms"],
+                "x": sum(item["x"] for item in chunk) / len(chunk),
+                "y": sum(item["y"] for item in chunk) / len(chunk),
+            }
+        )
     return output
 
 
@@ -67,15 +71,19 @@ def _densify(points: list[dict[str, Any]], max_step_px: float) -> list[dict[str,
         steps = max(1, int(math.ceil(distance / max(max_step_px, 1.0))))
         for step in range(1, steps + 1):
             fraction = step / steps
-            dense.append({
-                "t_ms": first["t_ms"] + (second["t_ms"] - first["t_ms"]) * fraction,
-                "x": first["x"] + (second["x"] - first["x"]) * fraction,
-                "y": first["y"] + (second["y"] - first["y"]) * fraction,
-            })
+            dense.append(
+                {
+                    "t_ms": first["t_ms"] + (second["t_ms"] - first["t_ms"]) * fraction,
+                    "x": first["x"] + (second["x"] - first["x"]) * fraction,
+                    "y": first["y"] + (second["y"] - first["y"]) * fraction,
+                }
+            )
     return dense
 
 
-def _kinematics(points: list[dict[str, float]]) -> tuple[list[dict[str, float]], list[dict[str, float]], list[dict[str, float]], float]:
+def _kinematics(
+    points: list[dict[str, float]],
+) -> tuple[list[dict[str, float]], list[dict[str, float]], list[dict[str, float]], float]:
     velocities: list[dict[str, float]] = []
     accelerations: list[dict[str, float]] = []
     jerks: list[dict[str, float]] = []
@@ -87,34 +95,36 @@ def _kinematics(points: list[dict[str, float]]) -> tuple[list[dict[str, float]],
         dy = second["y"] - first["y"]
         distance = math.hypot(dx, dy)
         path_length += distance
-        velocities.append({
-            "t_ms": second["t_ms"],
-            "speed_px_s": distance / dt_s,
-            "vx_px_s": dx / dt_s,
-            "vy_px_s": dy / dt_s,
-            "x": second["x"],
-            "y": second["y"],
-        })
+        velocities.append(
+            {
+                "t_ms": second["t_ms"],
+                "speed_px_s": distance / dt_s,
+                "vx_px_s": dx / dt_s,
+                "vy_px_s": dy / dt_s,
+                "x": second["x"],
+                "y": second["y"],
+            }
+        )
 
     for first, second in zip(velocities, velocities[1:]):
         dt_s = max(0.001, (second["t_ms"] - first["t_ms"]) / 1000.0)
-        accelerations.append({
-            "t_ms": second["t_ms"],
-            "accel_px_s2": (second["speed_px_s"] - first["speed_px_s"]) / dt_s,
-        })
+        accelerations.append(
+            {
+                "t_ms": second["t_ms"],
+                "accel_px_s2": (second["speed_px_s"] - first["speed_px_s"]) / dt_s,
+            }
+        )
 
     for first, second in zip(accelerations, accelerations[1:]):
         dt_s = max(0.001, (second["t_ms"] - first["t_ms"]) / 1000.0)
-        jerks.append({
-            "t_ms": second["t_ms"],
-            "jerk_px_s3": (second["accel_px_s2"] - first["accel_px_s2"]) / dt_s,
-        })
+        jerks.append(
+            {
+                "t_ms": second["t_ms"],
+                "jerk_px_s3": (second["accel_px_s2"] - first["accel_px_s2"]) / dt_s,
+            }
+        )
 
     return velocities, accelerations, jerks, path_length
-
-
-def _mean(values: list[float]) -> float:
-    return statistics.fmean(values) if values else 0.0
 
 
 def derive_trial(
@@ -194,40 +204,20 @@ def derive_trial(
     peak_speed_index = max(range(len(velocities)), key=lambda index: velocities[index]["speed_px_s"]) if velocities else 0
     peak_speed = velocities[peak_speed_index]["speed_px_s"] if velocities else 0.0
     peak_speed_time_ms = velocities[peak_speed_index]["t_ms"] if velocities else 0.0
-
-    braking_start_index = peak_speed_index
-    if velocities:
-        threshold = peak_speed * 0.92
-        for index in range(peak_speed_index, len(velocities)):
-            following = velocities[index:min(len(velocities), index + 3)]
-            if following and all(item["speed_px_s"] <= threshold for item in following):
-                braking_start_index = index
-                break
-    braking_start_ms = velocities[braking_start_index]["t_ms"] if velocities else 0.0
-    braking_x = velocities[braking_start_index]["x"] if velocities else start_x
-    braking_y = velocities[braking_start_index]["y"] if velocities else start_y
-    braking_distance_px = math.hypot(target_x - braking_x, target_y - braking_y)
-    braking_duration_ms = max(0.0, click_down_ms - braking_start_ms)
-
-    approach_start_distance = max(radius * 3.0, 45.0)
-    approach_speeds = [
-        item["speed_px_s"]
-        for item in velocities
-        if math.hypot(item["x"] - target_x, item["y"] - target_y) <= approach_start_distance
-    ]
-    target_approach_speed = _mean(approach_speeds)
-
     speed_at_entry = 0.0
     if first_entry_ms is not None and velocities:
         speed_at_entry = min(velocities, key=lambda item: abs(item["t_ms"] - first_entry_ms))["speed_px_s"]
 
-    early_speed_values = [item["speed_px_s"] for item in velocities[:max(1, len(velocities) // 3)]]
-    early_speed = _mean(early_speed_values)
-    slowdown_ratio = target_approach_speed / early_speed if early_speed > 0 else 0.0
-
     peak_acceleration = max((abs(item["accel_px_s2"]) for item in accelerations), default=0.0)
-    peak_deceleration = max((-item["accel_px_s2"] for item in accelerations if item["accel_px_s2"] < 0), default=0.0)
     peak_jerk = max((abs(item["jerk_px_s3"]) for item in jerks), default=0.0)
+    braking = analyze_braking(
+        velocities,
+        accelerations,
+        target_x=target_x,
+        target_y=target_y,
+        radius=radius,
+        click_down_ms=click_down_ms,
+    )
 
     return {
         "reaction_ms": round(reaction_ms, 3),
@@ -242,14 +232,8 @@ def derive_trial(
         "peak_speed_px_s": round(peak_speed, 3),
         "peak_speed_time_ms": round(peak_speed_time_ms, 3),
         "peak_accel_px_s2": round(peak_acceleration, 3),
-        "peak_decel_px_s2": round(peak_deceleration, 3),
         "peak_jerk_px_s3": round(peak_jerk, 3),
-        "braking_start_ms": round(braking_start_ms, 3),
-        "braking_distance_px": round(braking_distance_px, 3),
-        "braking_duration_ms": round(braking_duration_ms, 3),
-        "target_approach_speed_px_s": round(target_approach_speed, 3),
         "speed_at_entry_px_s": round(speed_at_entry, 3),
-        "slowdown_ratio": round(slowdown_ratio, 4),
         "overshoot_px": round(overshoot, 3),
         "radial_overshoot_px": round(radial_overshoot, 3),
         "directional_overshoot_px": round(directional_overshoot, 3),
@@ -257,4 +241,5 @@ def derive_trial(
         "entry_count": entry_count,
         "exit_count": exit_count,
         "miss": first_entry_index is None,
+        **braking,
     }
