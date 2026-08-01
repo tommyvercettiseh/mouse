@@ -16,6 +16,7 @@ class ProductContractTests(unittest.TestCase):
         self.assertNotIn("app_v1", source)
         self.assertNotIn("LegacyApp", source)
         self.assertFalse((ROOT / "app_v1.py").exists())
+        self.assertFalse((ROOT / "run_fixed.py").exists())
         self.assertEqual("ai_mouse_lab.application", app.App.__module__)
 
     def test_historical_patch_modules_are_not_in_worktree(self):
