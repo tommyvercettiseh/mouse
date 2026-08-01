@@ -113,12 +113,19 @@ def _trim_click_delay(trial: dict[str, Any], rng: random.Random) -> None:
     points = trial["points"]
     target = trial["target"]
     click = trial["click"]
+    if trial.get("miss_clicks"):
+        last_time = float(points[-1]["t_ms"])
+        if float(click["down_t_ms"]) <= last_time:
+            hold = max(25.0, float(click["up_t_ms"]) - float(click["down_t_ms"]))
+            click["down_t_ms"] = round(last_time + rng.uniform(18.0, 65.0), 3)
+            click["up_t_ms"] = round(float(click["down_t_ms"]) + hold, 3)
+        return
     entry = _first_entry(points, target)
     if entry is None:
         return
     current = float(click["down_t_ms"]) - entry
     lower = 28.0
-    upper = 430.0 if not trial.get("miss_clicks") else 520.0
+    upper = 430.0
     if current > upper:
         desired = rng.uniform(220.0, upper)
     elif current < lower:
