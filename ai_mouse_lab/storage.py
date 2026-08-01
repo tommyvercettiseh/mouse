@@ -12,11 +12,12 @@ RECORDINGS = DATA / "recordings"
 AIM = DATA / "aim_lab"
 PROFILES = DATA / "profiles"
 COMPARISONS = DATA / "comparisons"
+HEATMAPS = DATA / "heatmaps"
 
 # Compatibility alias for older modules. New A/B data is stored in comparisons.
 BENCHMARKS = COMPARISONS
 
-for folder in (RECORDINGS, AIM, PROFILES, COMPARISONS):
+for folder in (RECORDINGS, AIM, PROFILES, COMPARISONS, HEATMAPS):
     folder.mkdir(parents=True, exist_ok=True)
 
 
