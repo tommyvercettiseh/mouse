@@ -36,6 +36,31 @@ class MetricsTests(unittest.TestCase):
         click = {"down_t_ms": 100, "up_t_ms": 150, "x": 50, "y": 50}
         self.assertTrue(derive_trial(target, start, points, click)["miss"])
 
+    def test_braking_uses_sustained_slowdown(self):
+        target = {"x": 100, "y": 0, "radius": 10}
+        start = {"x": 0, "y": 0}
+        points = [
+            {"t_ms": 0, "x": 0, "y": 0},
+            {"t_ms": 40, "x": 8, "y": 0},
+            {"t_ms": 80, "x": 28, "y": 0},
+            {"t_ms": 120, "x": 55, "y": 0},
+            {"t_ms": 160, "x": 76, "y": 0},
+            {"t_ms": 200, "x": 88, "y": 0},
+            {"t_ms": 240, "x": 94, "y": 0},
+            {"t_ms": 280, "x": 98, "y": 0},
+        ]
+        click = {"down_t_ms": 300, "up_t_ms": 360, "x": 98, "y": 0}
+        result = derive_trial(target, start, points, click)
+
+        self.assertGreater(result["braking_start_ms"], 0)
+        self.assertGreater(result["braking_duration_ms"], 0)
+        self.assertGreater(result["peak_decel_px_s2"], 0)
+        self.assertIn("speed_at_2r_px_s", result)
+        self.assertIn("speed_at_1r_px_s", result)
+        self.assertIn("speed_at_half_r_px_s", result)
+        self.assertIn("final_100ms_speed_px_s", result)
+        self.assertLess(result["slowdown_ratio"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()
