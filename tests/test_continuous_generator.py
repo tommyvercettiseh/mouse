@@ -55,14 +55,26 @@ class ContinuousGeneratorTests(unittest.TestCase):
         trials = simulate(self._plan(40), self._profile(), seed=99)
         for trial in trials:
             self.assertGreaterEqual(trial["derived"]["click_delay_ms"], 20.0)
-            self.assertLessEqual(trial["derived"]["click_delay_ms"], 450.0)
-            self.assertLessEqual(trial["derived"]["peak_speed_px_s"], 12100.0)
+            self.assertLessEqual(trial["derived"]["click_delay_ms"], 380.0)
+            self.assertLessEqual(trial["derived"]["peak_speed_px_s"], 11650.0)
 
     def test_route_still_ends_at_click(self):
         trial = simulate(self._plan(1), self._profile(), seed=7)[0]
         end = trial["points"][-1]
         self.assertTrue(math.isclose(end["x"], trial["click"]["x"], abs_tol=0.001))
         self.assertTrue(math.isclose(end["y"], trial["click"]["y"], abs_tol=0.001))
+
+    def test_no_segment_jumps_when_time_is_tight(self):
+        trial = simulate(self._plan(1), self._profile(), seed=123)[0]
+        points = trial["points"]
+        for first, second in zip(points, points[1:]):
+            dt = float(second["t_ms"]) - float(first["t_ms"])
+            distance = math.hypot(
+                float(second["x"]) - float(first["x"]),
+                float(second["y"]) - float(first["y"]),
+            )
+            self.assertGreater(dt, 0.0)
+            self.assertLessEqual(distance / dt * 1000.0, 11650.0)
 
 
 if __name__ == "__main__":
