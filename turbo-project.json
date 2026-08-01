@@ -2,7 +2,7 @@
   "name": "AI Mouse Lab",
   "slug": "mouse",
   "entry": "Start AI Mouse Lab.bat",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "category": "tool",
-  "notes": "Aim Lab-only Windows tool for recording personal target movements, building a contextual movement profile, generating matched A/B trials, replaying routes and exporting repeated latest-session simulations from the Heatmap page."
+  "notes": "Aim Lab-only Windows tool for recording personal target movements, building a contextual movement profile, generating continuous route-cloud A/B trials, replaying routes and exporting repeated latest-session simulations from the Heatmap page."
 }
