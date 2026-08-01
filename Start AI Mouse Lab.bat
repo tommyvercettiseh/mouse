@@ -17,28 +17,34 @@ if not defined PYTHON_CMD (
     exit /b 1
 )
 
+set "NEED_INSTALL="
 if not exist ".venv\Scripts\python.exe" (
     echo [AI Mouse Lab] Virtuele omgeving maken...
     %PYTHON_CMD% -m venv .venv
     if errorlevel 1 goto :error
+    set "NEED_INSTALL=1"
 )
 
 call ".venv\Scripts\activate.bat"
 if errorlevel 1 goto :error
 
-python -m pip install --upgrade pip
-if errorlevel 1 goto :error
+python -c "import customtkinter" >nul 2>nul
+if errorlevel 1 set "NEED_INSTALL=1"
 
-python -m pip install -r requirements.txt
-if errorlevel 1 goto :error
+if defined NEED_INSTALL (
+    echo [AI Mouse Lab] Benodigdheden installeren...
+    python -m pip install -r requirements.txt
+    if errorlevel 1 goto :error
+)
 
 python app.py
+if errorlevel 1 goto :error
 exit /b 0
 
 :error
 echo.
 echo [AI Mouse Lab] Starten is mislukt.
-echo Controleer de foutmelding hierboven.
+echo Bekijk de fout hierboven en logs\ai_mouse_lab.log.
 echo.
 pause
 exit /b 1

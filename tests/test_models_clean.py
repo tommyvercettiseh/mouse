@@ -22,13 +22,72 @@ class ModelTests(unittest.TestCase):
         self.assertIsInstance(trial["points"][0], dict)
         self.assertIsInstance(trial["click"], dict)
         self.assertIsInstance(trial["derived"], dict)
+        self.assertEqual(trial["click_position_source"], "mouse_down")
+
+    def test_current_trials_use_replay_fast_path(self) -> None:
+        trials = [
+            {
+                "target": {"x": 10, "y": 10, "radius": 5},
+                "start": {"x": 0, "y": 0},
+                "points": [
+                    {"t_ms": 0, "x": 0, "y": 0},
+                    {"t_ms": 100, "x": 10, "y": 10},
+                ],
+                "click": {
+                    "down_t_ms": 100,
+                    "up_t_ms": 160,
+                    "x": 10,
+                    "y": 10,
+                },
+                "click_position_source": "mouse_down",
+                "miss_clicks": [],
+                "derived": {"movement_time_ms": 100},
+            }
+        ]
+        self.assertIs(normalize_trials(trials), trials)
+
+    def test_normalization_resolves_release_position_to_mouse_down(self) -> None:
+        trial = {
+            "target": {"x": 100, "y": 0, "radius": 20},
+            "start": {"x": 0, "y": 0},
+            "points": [
+                {"t_ms": 0, "x": 0, "y": 0},
+                {"t_ms": 50, "x": 40, "y": 0},
+                {"t_ms": 100, "x": 80, "y": 0},
+                {"t_ms": 150, "x": 130, "y": 30},
+            ],
+            "click": {
+                "down_t_ms": 100,
+                "up_t_ms": 150,
+                "x": 130,
+                "y": 30,
+            },
+            "miss_clicks": [],
+            "derived": {"movement_time_ms": 100},
+        }
+        normalized = normalize_trials([trial])[0]
+
+        self.assertAlmostEqual(normalized["click"]["x"], 80.0, places=3)
+        self.assertAlmostEqual(normalized["click"]["y"], 0.0, places=3)
+        self.assertEqual(normalized["click_position_source"], "mouse_down")
+        self.assertAlmostEqual(normalized["derived"]["click_error_px"], 20.0, places=3)
+        self.assertAlmostEqual(normalized["derived"]["path_efficiency"], 1.0, places=3)
 
     def test_duration_includes_click_release(self) -> None:
         trial = {
             "target": {"x": 10, "y": 10, "radius": 5},
             "start": {"x": 0, "y": 0},
-            "points": [{"t_ms": 0, "x": 0, "y": 0}, {"t_ms": 100, "x": 10, "y": 10}],
-            "click": {"down_t_ms": 110, "up_t_ms": 160, "x": 10, "y": 10},
+            "points": [
+                {"t_ms": 0, "x": 0, "y": 0},
+                {"t_ms": 100, "x": 10, "y": 10},
+            ],
+            "click": {
+                "down_t_ms": 100,
+                "up_t_ms": 160,
+                "x": 10,
+                "y": 10,
+            },
+            "click_position_source": "mouse_down",
         }
         self.assertEqual(trial_duration_ms(trial), 160)
 
@@ -36,8 +95,17 @@ class ModelTests(unittest.TestCase):
         trial = {
             "target": {"x": 10, "y": 10, "radius": 5},
             "start": {"x": 0, "y": 0},
-            "points": [{"t_ms": 20, "x": 0, "y": 0}, {"t_ms": 40, "x": 10, "y": 10}],
-            "click": {"down_t_ms": 40, "up_t_ms": 60, "x": 10, "y": 10},
+            "points": [
+                {"t_ms": 20, "x": 0, "y": 0},
+                {"t_ms": 40, "x": 10, "y": 10},
+            ],
+            "click": {
+                "down_t_ms": 40,
+                "up_t_ms": 60,
+                "x": 10,
+                "y": 10,
+            },
+            "click_position_source": "mouse_down",
         }
         self.assertEqual(len(visible_points(trial, 0)), 1)
 
