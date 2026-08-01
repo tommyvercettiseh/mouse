@@ -35,7 +35,7 @@ def _analyze_approach_corrections(
     radius: float,
 ) -> dict[str, float]:
     """Count deliberate pre-target steering reversals, excluding micro-jitter."""
-    if len(velocities) < 6:
+    if len(velocities) < 4:
         return _empty_approach()
 
     start_x = float(velocities[0]["x"])
@@ -75,7 +75,7 @@ def _analyze_approach_corrections(
             continue
         raw.append(candidate)
 
-    if len(raw) < 6:
+    if len(raw) < 4:
         return _empty_approach()
 
     samples: list[dict[str, float]] = []
@@ -118,14 +118,14 @@ def _analyze_approach_corrections(
         if (
             excursion < reversal_excursion
             or current_deviation < deviation_threshold
-            or index - last_turn_index < 3
+            or index - last_turn_index < 2
         ):
             trend = direction
             pivot_side = samples[index - 1]["side"]
             continue
 
-        before_index = max(0, index - 3)
-        after_index = min(len(samples) - 1, index + 2)
+        before_index = max(0, index - 2)
+        after_index = min(len(samples) - 1, index + 1)
         before = samples[before_index]
         turn = samples[index - 1]
         after = samples[after_index]
