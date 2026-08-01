@@ -25,7 +25,11 @@ def _sample_from_trial(trial: dict[str, Any]) -> dict[str, float] | None:
         points = []
     try:
         radius = max(1.0, float(target["radius"]))
-        click_x, click_y = click_position(points, click)
+        if trial.get("click_position_source") == "mouse_down":
+            click_x = float(click["x"])
+            click_y = float(click["y"])
+        else:
+            click_x, click_y = click_position(points, click)
         dx = click_x - float(target["x"])
         dy = click_y - float(target["y"])
     except (KeyError, TypeError, ValueError):
