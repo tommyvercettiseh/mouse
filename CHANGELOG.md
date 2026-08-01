@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0
+
+- Added a continuous route-cloud layer so repeated runs no longer group around a few discrete template lanes.
+- Adds smooth per-run lateral variation with fixed start and click endpoints.
+- Compacts generated miss recovery into one direct correction instead of a long multi-phase loop.
+- Bounds extreme local peak speeds by stretching impossible sample intervals rather than flattening the route.
+- Calibrates non-miss click delay away from near-zero and extreme long tails.
+- Added regression tests for route-band diversity, click-delay bounds, peak speed and click endpoints.
+- Routed production A/B and Heatmap generation through the new quality layer.
+- Synchronized package, VERSION and Turbo Repo Hub metadata.
+
 ## 0.12.0
 
 - Fixed double-counted click delay on generated route templates.
