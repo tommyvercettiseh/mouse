@@ -1,37 +1,37 @@
-# AI Mouse Lab v0.7.0
+# AI Mouse Lab v0.9.0
 
-Eén lokale Windows-hub voor het opbouwen van een persoonlijk muisprofiel en een blinde mens-versus-profielbenchmark.
+Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke muisbewegingen.
 
 ## Hoofdflow
 
-1. Neem Aim Lab-sessies op in de vaste virtuele arena van 1920 × 1080.
-2. Kies **Normale opname** voor trainingsdata of **Detectietest** voor technische experimenten.
-3. Bouw het masterprofiel opnieuw.
-4. Open **Benchmark**, speel zelf en bekijk A en B synchroon op één arena.
-5. Upload alleen `A.json` en `B.json` voor een blinde beoordeling.
+1. Neem een Aim Lab-sessie op in de vaste virtuele arena van 1920 × 1080.
+2. Gebruik **Normale opname** voor trainingsdata of **Detectietest** voor technische controles.
+3. Klik **Build Profile** om het persoonlijke masterprofiel opnieuw te bouwen.
+4. Klik **Test nieuwste opname A/B**.
+5. A gebruikt de laatste echte Aim Lab-opname; B gebruikt exact dezelfde targetplaylist en wordt gegenereerd met het persoonlijke profiel.
+6. Results speelt alle targets automatisch achter elkaar af.
 
-## Persoonlijk contextmodel
+## Actieve architectuur
 
-Het profiel leert niet alleen algemene gemiddelden, maar verdeelt jouw gedrag over contexten op basis van:
+De applicatie start rechtstreeks via `app_clean.py`. De oude `v06` tot en met `v083` patchbestanden blijven alleen als historische rollbackbron in de repository en worden niet meer uitgevoerd.
 
-- korte, middellange en lange bewegingen
-- kleine, middelgrote en grote targets
-- acht bewegingsrichtingen
-- reactietijd, bewegingstijd en klikvertraging
-- remstart, snelheid, versnelling en jerk
-- overshoot, correcties, entries/exits en misklikken
-- routevormen en klikpositie
+De actieve kern bestaat uit:
 
-Technische detectietests en onwaarschijnlijke recorderuitschieters worden niet gebruikt als normale trainingsdata. Het profiel bewaart aantallen en afwijsredenen zodat dit controleerbaar blijft.
+- `app_clean.py` — UI, opnamebediening en replaycontroller
+- `ai_mouse_lab/models.py` — één vast trial- en replaycontract
+- `ai_mouse_lab/comparison_flow.py` — laatste Aim Lab-opname naar A/B-comparison
+- `ai_mouse_lab/personal_model.py` — profielbouw en persoonlijke generatie
+- `ai_mouse_lab/metrics.py` — afgeleide bewegingsmetingen
+- `ai_mouse_lab/storage.py` — lokale JSON-opslag
 
-## Datakwaliteit
+## Data
 
-Voor een sterk profiel zijn meerdere normale sessies nodig. Richtwaarde:
+- `data/aim_lab` — menselijke Aim Lab-sessies
+- `data/profiles` — persoonlijk masterprofiel
+- `data/comparisons` — A/B-vergelijkingen
+- `data/recordings` — vrije opnames
 
-- 200–300 geaccepteerde targets
-- meerdere sessies
-- verschillende afstanden, richtingen en targetgroottes
-- minimaal acht voorbeelden in de belangrijkste contexten
+Bestaande lokale data wordt niet automatisch verwijderd.
 
 ## Testen
 
@@ -43,6 +43,6 @@ python -m unittest discover -s tests -v
 
 - externe muisbesturing
 - cloudopslag
-- automatische classifier
+- database of extra framework
 - heatmaps of video-export
-- neural network of diffusionmodel
+- automatische classifier
