@@ -528,7 +528,7 @@ class App(ctk.CTk):
             self.replay_index += 1
             self.replay_elapsed = 0.0
             self.replay_started = time.perf_counter()
-            self.replay.draw(0.0)
+            self.replay_draw(0.0)
             self.replay_after_id = self.after(FRAME_MS, self._replay_tick)
             return
         self.replay_elapsed = duration
@@ -617,7 +617,14 @@ class App(ctk.CTk):
         derived = trial.get("derived", {})
         if not isinstance(derived, dict):
             derived = {}
-        return (f"Reactie: {float(derived.get('reaction_ms', 0) or 0):.0f} ms\n" f"Beweging: {float(derived.get('movement_time_ms', 0) or 0):.0f} ms\n" f"Efficiëntie: {float(derived.get('path_efficiency', 0) or 0):.3f}\n" f"Overshoot: {float(derived.get('overshoot_px', 0) or 0):.1f} px\n" f"Correcties: {int(float(derived.get('correction_count', 0) or 0))}\n" f"Misklikken: {len(trial.get('miss_clicks', []))}")
+        return (
+            f"Reactie: {float(derived.get('reaction_ms', 0) or 0):.0f} ms\n"
+            f"Beweging: {float(derived.get('movement_time_ms', 0) or 0):.0f} ms\n"
+            f"Efficiëntie: {float(derived.get('path_efficiency', 0) or 0):.3f}\n"
+            f"Overshoot: {float(derived.get('overshoot_px', 0) or 0):.1f} px\n"
+            f"Correcties: {int(float(derived.get('correction_count', 0) or 0))}\n"
+            f"Misklikken: {len(trial.get('miss_clicks', []))}"
+        )
 
 
 def main() -> None:
