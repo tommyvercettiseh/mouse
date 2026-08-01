@@ -23,12 +23,41 @@ class ModelTests(unittest.TestCase):
         self.assertIsInstance(trial["click"], dict)
         self.assertIsInstance(trial["derived"], dict)
 
+    def test_current_trials_use_replay_fast_path(self) -> None:
+        trials = [
+            {
+                "target": {"x": 10, "y": 10, "radius": 5},
+                "start": {"x": 0, "y": 0},
+                "points": [
+                    {"t_ms": 0, "x": 0, "y": 0},
+                    {"t_ms": 100, "x": 10, "y": 10},
+                ],
+                "click": {
+                    "down_t_ms": 110,
+                    "up_t_ms": 160,
+                    "x": 10,
+                    "y": 10,
+                },
+                "miss_clicks": [],
+                "derived": {"movement_time_ms": 110},
+            }
+        ]
+        self.assertIs(normalize_trials(trials), trials)
+
     def test_duration_includes_click_release(self) -> None:
         trial = {
             "target": {"x": 10, "y": 10, "radius": 5},
             "start": {"x": 0, "y": 0},
-            "points": [{"t_ms": 0, "x": 0, "y": 0}, {"t_ms": 100, "x": 10, "y": 10}],
-            "click": {"down_t_ms": 110, "up_t_ms": 160, "x": 10, "y": 10},
+            "points": [
+                {"t_ms": 0, "x": 0, "y": 0},
+                {"t_ms": 100, "x": 10, "y": 10},
+            ],
+            "click": {
+                "down_t_ms": 110,
+                "up_t_ms": 160,
+                "x": 10,
+                "y": 10,
+            },
         }
         self.assertEqual(trial_duration_ms(trial), 160)
 
@@ -36,8 +65,16 @@ class ModelTests(unittest.TestCase):
         trial = {
             "target": {"x": 10, "y": 10, "radius": 5},
             "start": {"x": 0, "y": 0},
-            "points": [{"t_ms": 20, "x": 0, "y": 0}, {"t_ms": 40, "x": 10, "y": 10}],
-            "click": {"down_t_ms": 40, "up_t_ms": 60, "x": 10, "y": 10},
+            "points": [
+                {"t_ms": 20, "x": 0, "y": 0},
+                {"t_ms": 40, "x": 10, "y": 10},
+            ],
+            "click": {
+                "down_t_ms": 40,
+                "up_t_ms": 60,
+                "x": 10,
+                "y": 10,
+            },
         }
         self.assertEqual(len(visible_points(trial, 0)), 1)
 
