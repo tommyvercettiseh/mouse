@@ -34,13 +34,8 @@ def _analyze_approach_corrections(
     target_y: float,
     radius: float,
 ) -> dict[str, float]:
-    """Count meaningful steering reversals before the first target entry.
-
-    This deliberately excludes movement inside or beyond the target. Those events
-    remain part of entry/exit and overshoot metrics instead of being mislabeled as
-    an approach correction.
-    """
-    if len(velocities) < 4:
+    """Count deliberate pre-target steering reversals, excluding micro-jitter."""
+    if len(velocities) < 6:
         return _empty_approach()
 
     start_x = float(velocities[0]["x"])
@@ -53,7 +48,10 @@ def _analyze_approach_corrections(
 
     unit_x, unit_y = direction_x / distance, direction_y / distance
     side_x, side_y = -unit_y, unit_x
-    samples: list[dict[str, float]] = []
+    anchor_distance = max(2.8, radius * 0.14)
+    minimum_speed = 45.0
+    raw: list[dict[str, float]] = []
+
     for item in velocities:
         x = float(item["x"])
         y = float(item["y"])
@@ -62,49 +60,83 @@ def _analyze_approach_corrections(
         along = (x - start_x) * unit_x + (y - start_y) * unit_y
         if along > distance + radius:
             break
+        speed = float(item.get("speed_px_s", 0.0) or 0.0)
+        candidate = {
+            "t_ms": float(item["t_ms"]),
+            "x": x,
+            "y": y,
+            "along": along,
+            "side": (x - start_x) * side_x + (y - start_y) * side_y,
+            "speed": speed,
+        }
+        if speed < minimum_speed:
+            continue
+        if raw and math.hypot(x - raw[-1]["x"], y - raw[-1]["y"]) < anchor_distance:
+            continue
+        raw.append(candidate)
+
+    if len(raw) < 6:
+        return _empty_approach()
+
+    samples: list[dict[str, float]] = []
+    for index, item in enumerate(raw):
+        lo = max(0, index - 1)
+        hi = min(len(raw), index + 2)
+        window = raw[lo:hi]
         samples.append(
             {
-                "t_ms": float(item["t_ms"]),
-                "along": along,
-                "side": (x - start_x) * side_x + (y - start_y) * side_y,
+                **item,
+                "along": _mean([value["along"] for value in window]),
+                "side": _mean([value["side"] for value in window]),
             }
         )
 
-    if len(samples) < 4:
-        return _empty_approach()
-
-    threshold = max(3.0, radius * 0.12)
+    deviation_threshold = max(4.0, radius * 0.22)
+    reversal_excursion = max(5.0, radius * 0.28)
     max_deviation = max(abs(item["side"]) for item in samples)
     correction_count = 0
     first_correction_ms = 0.0
     max_angle_change = 0.0
-    last_turn_index = -10
 
-    for index in range(1, len(samples) - 1):
-        before, current, after = samples[index - 1], samples[index], samples[index + 1]
-        side_before = current["side"] - before["side"]
-        side_after = after["side"] - current["side"]
-        if side_before == 0.0 or side_after == 0.0:
+    trend = 0
+    pivot_side = samples[0]["side"]
+    last_turn_index = -99
+    for index in range(1, len(samples)):
+        delta = samples[index]["side"] - samples[index - 1]["side"]
+        if abs(delta) < 0.75:
             continue
-        if side_before * side_after >= 0.0:
+        direction = 1 if delta > 0 else -1
+        if trend == 0:
+            trend = direction
+            pivot_side = samples[index - 1]["side"]
             continue
-        if abs(current["side"]) < threshold:
-            continue
-        if index - last_turn_index < 2:
+        if direction == trend:
             continue
 
-        correction_count += 1
-        last_turn_index = index
-        if first_correction_ms == 0.0:
-            first_correction_ms = current["t_ms"]
+        excursion = abs(samples[index - 1]["side"] - pivot_side)
+        current_deviation = abs(samples[index - 1]["side"])
+        if (
+            excursion < reversal_excursion
+            or current_deviation < deviation_threshold
+            or index - last_turn_index < 3
+        ):
+            trend = direction
+            pivot_side = samples[index - 1]["side"]
+            continue
 
-        first_x = current["along"] - before["along"]
-        first_y = current["side"] - before["side"]
-        second_x = after["along"] - current["along"]
-        second_y = after["side"] - current["side"]
+        before_index = max(0, index - 3)
+        after_index = min(len(samples) - 1, index + 2)
+        before = samples[before_index]
+        turn = samples[index - 1]
+        after = samples[after_index]
+        first_x = turn["along"] - before["along"]
+        first_y = turn["side"] - before["side"]
+        second_x = after["along"] - turn["along"]
+        second_y = after["side"] - turn["side"]
         first_length = math.hypot(first_x, first_y)
         second_length = math.hypot(second_x, second_y)
-        if first_length > 0.0 and second_length > 0.0:
+        angle_change = 0.0
+        if first_length >= anchor_distance and second_length >= anchor_distance:
             cosine = max(
                 -1.0,
                 min(
@@ -113,10 +145,20 @@ def _analyze_approach_corrections(
                     / (first_length * second_length),
                 ),
             )
-            max_angle_change = max(
-                max_angle_change,
-                math.degrees(math.acos(cosine)),
-            )
+            angle_change = math.degrees(math.acos(cosine))
+
+        if angle_change >= 170.0 and excursion < reversal_excursion * 2.5:
+            trend = direction
+            pivot_side = turn["side"]
+            continue
+
+        correction_count += 1
+        last_turn_index = index
+        if first_correction_ms == 0.0:
+            first_correction_ms = turn["t_ms"]
+        max_angle_change = max(max_angle_change, angle_change)
+        trend = direction
+        pivot_side = turn["side"]
 
     return {
         "approach_correction_count": float(correction_count),
