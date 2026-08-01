@@ -55,6 +55,46 @@ def _clean_source_points(points: list[dict[str, Any]]) -> list[dict[str, float]]
     return source
 
 
+def click_position(
+    points: list[dict[str, Any]],
+    click: dict[str, Any],
+) -> tuple[float, float]:
+    """Estimate cursor position at mouse-down from timestamped route samples."""
+
+    source = _clean_source_points(points)
+    try:
+        fallback_x = float(click.get("x", source[-1]["x"] if source else 0.0))
+        fallback_y = float(click.get("y", source[-1]["y"] if source else 0.0))
+    except (AttributeError, TypeError, ValueError):
+        fallback_x = source[-1]["x"] if source else 0.0
+        fallback_y = source[-1]["y"] if source else 0.0
+    if not source:
+        return fallback_x, fallback_y
+
+    try:
+        click_down_ms = float(click.get("down_t_ms"))
+    except (AttributeError, TypeError, ValueError):
+        return fallback_x, fallback_y
+
+    if click_down_ms < source[0]["t_ms"] or click_down_ms > source[-1]["t_ms"]:
+        return fallback_x, fallback_y
+    if math.isclose(click_down_ms, source[0]["t_ms"], abs_tol=1e-9):
+        return source[0]["x"], source[0]["y"]
+
+    for first, second in zip(source, source[1:]):
+        if click_down_ms > second["t_ms"]:
+            continue
+        duration = second["t_ms"] - first["t_ms"]
+        if duration <= 0:
+            return second["x"], second["y"]
+        fraction = max(0.0, min(1.0, (click_down_ms - first["t_ms"]) / duration))
+        return (
+            first["x"] + (second["x"] - first["x"]) * fraction,
+            first["y"] + (second["y"] - first["y"]) * fraction,
+        )
+    return fallback_x, fallback_y
+
+
 def movement_points(
     points: list[dict[str, Any]],
     click: dict[str, Any],
@@ -78,12 +118,7 @@ def movement_points(
         click_down_ms = fallback_time
     click_down_ms = max(0.0, click_down_ms)
 
-    try:
-        click_x = float(click.get("x", source[-1]["x"]))
-        click_y = float(click.get("y", source[-1]["y"]))
-    except (AttributeError, TypeError, ValueError):
-        click_x = source[-1]["x"]
-        click_y = source[-1]["y"]
+    click_x, click_y = click_position(source, click)
 
     route = [point for point in source if point["t_ms"] < click_down_ms]
     if not route:
@@ -255,8 +290,9 @@ def derive_trial(
 
     click_down_ms = float(click.get("down_t_ms") or clean[-1]["t_ms"])
     click_up_ms = float(click.get("up_t_ms") or click_down_ms)
-    click_x = float(click.get("x", clean[-1]["x"]))
-    click_y = float(click.get("y", clean[-1]["y"]))
+    click_x = clean[-1]["x"]
+    click_y = clean[-1]["y"]
+    click_distance = math.hypot(click_x - start_x, click_y - start_y)
 
     direction_x = target_x - start_x
     direction_y = target_y - start_y
@@ -384,10 +420,11 @@ def derive_trial(
         "distance_px": round(straight_distance, 3),
         "path_length_px": round(path_length, 3),
         "path_efficiency": (
-            round(straight_distance / path_length, 4)
+            round(click_distance / path_length, 4)
             if path_length > 0
             else 0.0
         ),
+        "click_distance_px": round(click_distance, 3),
         "click_error_px": round(
             math.hypot(click_x - target_x, click_y - target_y),
             3,
