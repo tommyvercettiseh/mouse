@@ -30,6 +30,10 @@ FEATURES = (
     "braking_duration_ms",
     "target_approach_speed_px_s",
     "speed_at_entry_px_s",
+    "speed_at_2r_px_s",
+    "speed_at_1r_px_s",
+    "speed_at_half_r_px_s",
+    "final_100ms_speed_px_s",
     "slowdown_ratio",
 )
 
