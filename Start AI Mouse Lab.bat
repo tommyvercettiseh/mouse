@@ -32,13 +32,13 @@ if errorlevel 1 goto :error
 python -m pip install -r requirements.txt
 if errorlevel 1 goto :error
 
-python run_v06.py
+python app.py
 exit /b 0
 
 :error
 echo.
 echo [AI Mouse Lab] Starten is mislukt.
-echo Controleer of Python 3 correct is geinstalleerd en in PATH staat.
+echo Controleer de foutmelding hierboven.
 echo.
 pause
 exit /b 1
