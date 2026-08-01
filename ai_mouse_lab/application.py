@@ -25,14 +25,33 @@ from .ui_theme import (
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = ROOT / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "ai_mouse_lab.log"
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8")],
-)
-LOGGER = logging.getLogger("ai_mouse_lab.app")
+
+
+def _configure_logger() -> logging.Logger:
+    logger = logging.getLogger("ai_mouse_lab.app")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if logger.handlers:
+        return logger
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        handler: logging.Handler = logging.FileHandler(
+            LOG_FILE,
+            encoding="utf-8",
+        )
+    except OSError:
+        handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+
+
+LOGGER = _configure_logger()
 
 
 class App(AimLabMixin, ReplayMixin, ctk.CTk):
@@ -65,15 +84,26 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
         )
         status = getattr(self, "aim_status", None)
         if status is not None:
-            status.configure(
-                text=f"Onverwachte fout: {exc_type.__name__}. Zie logs/ai_mouse_lab.log",
-                text_color=RED,
-            )
+            try:
+                status.configure(
+                    text=(
+                        f"Onverwachte fout: {exc_type.__name__}. "
+                        "Zie logs/ai_mouse_lab.log"
+                    ),
+                    text_color=RED,
+                )
+            except TclError:
+                LOGGER.debug("Status widget unavailable after callback failure")
 
     def _build_shell(self) -> None:
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        nav = ctk.CTkFrame(self, width=170, fg_color="#0d131d", corner_radius=0)
+        nav = ctk.CTkFrame(
+            self,
+            width=170,
+            fg_color="#0d131d",
+            corner_radius=0,
+        )
         nav.grid(row=0, column=0, sticky="nsew")
         nav.grid_propagate(False)
         ctk.CTkLabel(
@@ -83,7 +113,9 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
             font=("Segoe UI", 21, "bold"),
         ).pack(anchor="w", padx=16, pady=(24, 2))
         ctk.CTkLabel(nav, text=f"v{__version__}", text_color=MUTED).pack(
-            anchor="w", padx=16, pady=(0, 18)
+            anchor="w",
+            padx=16,
+            pady=(0, 18),
         )
         aim_button = ctk.CTkButton(
             nav,
@@ -96,9 +128,11 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
         )
         aim_button.pack(fill="x", padx=10, pady=3)
         self.nav_buttons["Aim Lab"] = aim_button
-        ctk.CTkLabel(nav, text="● Data blijft lokaal", text_color=GREEN).pack(
-            side="bottom", anchor="w", padx=16, pady=18
-        )
+        ctk.CTkLabel(
+            nav,
+            text="● Data blijft lokaal",
+            text_color=GREEN,
+        ).pack(side="bottom", anchor="w", padx=16, pady=18)
 
         self.host = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self.host.grid(row=0, column=1, sticky="nsew", padx=18, pady=18)
@@ -120,7 +154,11 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
             text_color=TEXT,
             font=("Segoe UI", 30, "bold"),
         ).pack(anchor="w")
-        ctk.CTkLabel(header, text=subtitle, text_color=MUTED).pack(anchor="w")
+        ctk.CTkLabel(
+            header,
+            text=subtitle,
+            text_color=MUTED,
+        ).pack(anchor="w")
         body = ctk.CTkFrame(root, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew")
         self.pages[key] = root
@@ -134,7 +172,9 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
             page.grid_remove()
             button = self.nav_buttons.get(name)
             if button is not None:
-                button.configure(fg_color=PURPLE if name == key else "transparent")
+                button.configure(
+                    fg_color=PURPLE if name == key else "transparent"
+                )
         self.pages[key].grid()
         if key == "Aim Lab":
             self.refresh_profile_status()
@@ -168,7 +208,10 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
         y: float,
     ) -> tuple[float, float]:
         scale, offset_x, offset_y = self._canvas_box(canvas)
-        return (x - offset_x) / max(scale, 1e-9), (y - offset_y) / max(scale, 1e-9)
+        return (
+            (x - offset_x) / max(scale, 1e-9),
+            (y - offset_y) / max(scale, 1e-9),
+        )
 
     def _cancel_after(self, attribute: str) -> None:
         callback_id = getattr(self, attribute, None)
@@ -182,10 +225,16 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
     @staticmethod
     def _show_error(action: str, error: BaseException, label: Any) -> None:
         LOGGER.exception("%s failed", action)
-        label.configure(
-            text=f"{action} mislukt: {error}\nZie logs/ai_mouse_lab.log",
-            text_color=RED,
-        )
+        try:
+            label.configure(
+                text=(
+                    f"{action} mislukt: {error}\n"
+                    "Zie logs/ai_mouse_lab.log"
+                ),
+                text_color=RED,
+            )
+        except TclError:
+            LOGGER.debug("Error label unavailable for action: %s", action)
 
     def close_app(self) -> None:
         LOGGER.info("Application closing")
