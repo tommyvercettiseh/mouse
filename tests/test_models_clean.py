@@ -22,6 +22,7 @@ class ModelTests(unittest.TestCase):
         self.assertIsInstance(trial["points"][0], dict)
         self.assertIsInstance(trial["click"], dict)
         self.assertIsInstance(trial["derived"], dict)
+        self.assertEqual(trial["click_position_source"], "mouse_down")
 
     def test_current_trials_use_replay_fast_path(self) -> None:
         trials = [
@@ -38,6 +39,7 @@ class ModelTests(unittest.TestCase):
                     "x": 10,
                     "y": 10,
                 },
+                "click_position_source": "mouse_down",
                 "miss_clicks": [],
                 "derived": {"movement_time_ms": 100},
             }
@@ -67,6 +69,7 @@ class ModelTests(unittest.TestCase):
 
         self.assertAlmostEqual(normalized["click"]["x"], 80.0, places=3)
         self.assertAlmostEqual(normalized["click"]["y"], 0.0, places=3)
+        self.assertEqual(normalized["click_position_source"], "mouse_down")
         self.assertAlmostEqual(normalized["derived"]["click_error_px"], 20.0, places=3)
         self.assertAlmostEqual(normalized["derived"]["path_efficiency"], 1.0, places=3)
 
@@ -84,6 +87,7 @@ class ModelTests(unittest.TestCase):
                 "x": 10,
                 "y": 10,
             },
+            "click_position_source": "mouse_down",
         }
         self.assertEqual(trial_duration_ms(trial), 160)
 
@@ -101,6 +105,7 @@ class ModelTests(unittest.TestCase):
                 "x": 10,
                 "y": 10,
             },
+            "click_position_source": "mouse_down",
         }
         self.assertEqual(len(visible_points(trial, 0)), 1)
 
