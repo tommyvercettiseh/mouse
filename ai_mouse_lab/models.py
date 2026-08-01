@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
-from .metrics import derive_trial
+from .metrics import click_position, derive_trial
 from .schema import normalize_session, normalize_trial as _normalize_trial
 
 
@@ -23,11 +24,39 @@ def _is_current_trial(value: Any) -> bool:
     )
 
 
+def _click_is_resolved(trial: dict[str, Any]) -> bool:
+    click = trial.get("click", {})
+    points = trial.get("points", [])
+    if not isinstance(click, dict) or not isinstance(points, list):
+        return False
+    try:
+        resolved_x, resolved_y = click_position(points, click)
+        return math.isclose(float(click["x"]), resolved_x, abs_tol=0.001) and math.isclose(
+            float(click["y"]), resolved_y, abs_tol=0.001
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def _resolve_click(trial: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    if _click_is_resolved(trial):
+        return trial, False
+    click = trial.get("click", {})
+    points = trial.get("points", [])
+    if not isinstance(click, dict) or not isinstance(points, list):
+        return trial, False
+    resolved_x, resolved_y = click_position(points, click)
+    output = dict(trial)
+    output["click"] = {**click, "x": resolved_x, "y": resolved_y}
+    return output, True
+
+
 def normalize_trial(value: Any, index: int = 0) -> dict[str, Any] | None:
     trial = value if _is_current_trial(value) else _normalize_trial(value, index)
     if trial is None:
         return None
-    if not trial["derived"] and len(trial["points"]) >= 2:
+    trial, click_changed = _resolve_click(trial)
+    if (click_changed or not trial["derived"]) and len(trial["points"]) >= 2:
         trial = dict(trial)
         try:
             trial["derived"] = derive_trial(
@@ -51,6 +80,7 @@ def normalize_trials(value: Any) -> list[dict[str, Any]]:
     # existing list avoids repeated deep copies and metric recalculation.
     if value and all(
         _is_current_trial(trial)
+        and _click_is_resolved(trial)
         and (bool(trial["derived"]) or len(trial["points"]) < 2)
         for trial in value
     ):
