@@ -1,1 +1,1 @@
-{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.5","category":"tool","notes":"Functional Free Record controls plus full-size 1920x1080 synchronized purple/green A/B overlay replay matching Aim Lab."}
+{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.7.6","category":"tool","notes":"Benchmark now uses the same same-monitor fullscreen 1920x1080 arena and continuous trace rendering as Aim Lab, then returns to the large synchronized A/B overlay replay."}
