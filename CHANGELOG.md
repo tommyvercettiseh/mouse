@@ -4,13 +4,17 @@
 
 - Replaced the legacy `app_v1.py` wrapper with one clean application entrypoint.
 - Split Aim Lab recording and replay into focused UI controllers.
-- Removed the Free Record flow and its unreachable application code.
-- Added persistent callback and runtime logging in `logs/ai_mouse_lab.log`.
+- Removed the Free Record flow, old patch modules and obsolete launch code.
+- Added resilient callback and runtime logging in `logs/ai_mouse_lab.log`.
+- Records and validates hits at mouse-down rather than mouse release.
+- Excludes button-hold and release drift from movement, acceleration and overshoot metrics.
+- Normalizes older recordings to mouse-down semantics when they are read.
+- Stores actual normalized route shapes and reuses recurring wiggles, bends and correction patterns in generated movement.
 - Made generated routes end at the personally sampled click position.
 - Added visible final-click and miss markers to A/B replay.
 - Added generated miss recovery routes instead of metadata-only misses.
 - Added click padding and click-error values to replay statistics.
-- Added product-contract, click-route and replay-timing regression tests.
+- Added product-contract, click-route, route-shape and replay-timing regression tests.
 - Added Windows and Linux GitHub Actions checks.
 - Made the Windows launcher install dependencies only when required.
 - Synchronized package, VERSION and Turbo Repo Hub version metadata.
