@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .generator import simulate
+from .continuous_generator import simulate
 from .profile_model import FEATURES, build_personal_profile, context_key, quality_reason
 
 
@@ -11,7 +11,7 @@ def contextual_simulate(
     profile: dict[str, Any],
     seed: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Compatibility name for the integrated context-aware generator."""
+    """Run the personal generator with continuous route-cloud quality controls."""
     return simulate(plan, profile, seed)
 
 
