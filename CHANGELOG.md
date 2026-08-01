@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.1
+
+- Reduced route-cloud width when the selected personal template already contains strong lateral curvature.
+- Replaced symmetric leaf-shaped cloud warping with asymmetric early/late deviation profiles.
+- Fades added cloud variation near the target so arrival and click behavior stay compact.
+- Caps generated miss frequency at the real global profile rate with a conservative 12% ceiling.
+- Rebuilds shortened click-delay phases as smooth settling routes instead of truncating and jumping to the click point.
+- Reworked speed limiting into dynamic path retiming: when a segment needs more time, all downstream timing and the click move later without skipping coordinates.
+- Added regression coverage proving every generated segment remains inside the final speed ceiling.
+- Synchronized package, VERSION and Turbo Repo Hub metadata.
+
 ## 0.13.0
 
 - Added a continuous route-cloud layer so repeated runs no longer group around a few discrete template lanes.
