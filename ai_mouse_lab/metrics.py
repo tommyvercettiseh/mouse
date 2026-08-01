@@ -23,7 +23,10 @@ def percentile(values: list[float], p: float) -> float:
 
 def stats(values: list[float]) -> dict[str, float]:
     if not values:
-        return {key: 0.0 for key in ("mean", "median", "stdev", "p10", "p90", "min", "max")}
+        return {
+            key: 0.0
+            for key in ("mean", "median", "stdev", "p10", "p90", "min", "max")
+        }
     return {
         "mean": round(statistics.fmean(values), 3),
         "median": round(statistics.median(values), 3),
@@ -35,20 +38,100 @@ def stats(values: list[float]) -> dict[str, float]:
     }
 
 
-def smooth_points(points: list[dict[str, Any]], window: int = 5) -> list[dict[str, float]]:
-    source = [
-        {"t_ms": float(point["t_ms"]), "x": float(point["x"]), "y": float(point["y"])}
-        for point in points
-    ]
+def _clean_source_points(points: list[dict[str, Any]]) -> list[dict[str, float]]:
+    source: list[dict[str, float]] = []
+    for point in points:
+        try:
+            source.append(
+                {
+                    "t_ms": float(point["t_ms"]),
+                    "x": float(point["x"]),
+                    "y": float(point["y"]),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    source.sort(key=lambda point: point["t_ms"])
+    return source
+
+
+def movement_points(
+    points: list[dict[str, Any]],
+    click: dict[str, Any],
+    start: dict[str, Any] | None = None,
+) -> list[dict[str, float]]:
+    """Return the measured route up to mouse-down, ending at click x/y.
+
+    Cursor samples captured while the button is held belong to click hold/drift, not
+    to target acquisition. Keeping them in the movement route inflates path length,
+    acceleration and overshoot, so they are deliberately excluded here.
+    """
+
+    source = _clean_source_points(points)
+    if not source:
+        return []
+
+    fallback_time = source[-1]["t_ms"]
+    try:
+        click_down_ms = float(click.get("down_t_ms") or fallback_time)
+    except (AttributeError, TypeError, ValueError):
+        click_down_ms = fallback_time
+    click_down_ms = max(0.0, click_down_ms)
+
+    try:
+        click_x = float(click.get("x", source[-1]["x"]))
+        click_y = float(click.get("y", source[-1]["y"]))
+    except (AttributeError, TypeError, ValueError):
+        click_x = source[-1]["x"]
+        click_y = source[-1]["y"]
+
+    route = [point for point in source if point["t_ms"] < click_down_ms]
+    if not route:
+        if isinstance(start, dict):
+            try:
+                start_x = float(start["x"])
+                start_y = float(start["y"])
+            except (KeyError, TypeError, ValueError):
+                start_x, start_y = source[0]["x"], source[0]["y"]
+        else:
+            start_x, start_y = source[0]["x"], source[0]["y"]
+        route = [
+            {
+                "t_ms": max(0.0, click_down_ms - 1.0),
+                "x": start_x,
+                "y": start_y,
+            }
+        ]
+
+    click_point = {"t_ms": click_down_ms, "x": click_x, "y": click_y}
+    if math.isclose(route[-1]["t_ms"], click_down_ms, abs_tol=1e-9):
+        route[-1] = click_point
+    else:
+        route.append(click_point)
+
+    if len(route) == 1:
+        route.insert(
+            0,
+            {
+                "t_ms": max(0.0, click_down_ms - 1.0),
+                "x": route[0]["x"],
+                "y": route[0]["y"],
+            },
+        )
+    return route
+
+
+def smooth_points(
+    points: list[dict[str, Any]],
+    window: int = 5,
+) -> list[dict[str, float]]:
+    source = _clean_source_points(points)
     if window < 2 or len(source) <= window:
         return source
 
     radius = window // 2
     output: list[dict[str, float]] = []
     for index, point in enumerate(source):
-        # Preserve the measured start/end exactly. Moving either endpoint can make
-        # the smoothed path shorter than the true straight-line distance and create
-        # impossible path-efficiency values above 1.0.
         if index == 0 or index == len(source) - 1:
             output.append(dict(point))
             continue
@@ -66,22 +149,26 @@ def smooth_points(points: list[dict[str, Any]], window: int = 5) -> list[dict[st
     return output
 
 
-def _densify(points: list[dict[str, Any]], max_step_px: float) -> list[dict[str, float]]:
-    source = [
-        {"t_ms": float(point["t_ms"]), "x": float(point["x"]), "y": float(point["y"])}
-        for point in points
-    ]
+def _densify(
+    points: list[dict[str, Any]],
+    max_step_px: float,
+) -> list[dict[str, float]]:
+    source = _clean_source_points(points)
     if len(source) < 2:
         return source
     dense = [source[0]]
     for first, second in zip(source, source[1:]):
-        distance = math.hypot(second["x"] - first["x"], second["y"] - first["y"])
+        distance = math.hypot(
+            second["x"] - first["x"],
+            second["y"] - first["y"],
+        )
         steps = max(1, int(math.ceil(distance / max(max_step_px, 1.0))))
         for step in range(1, steps + 1):
             fraction = step / steps
             dense.append(
                 {
-                    "t_ms": first["t_ms"] + (second["t_ms"] - first["t_ms"]) * fraction,
+                    "t_ms": first["t_ms"]
+                    + (second["t_ms"] - first["t_ms"]) * fraction,
                     "x": first["x"] + (second["x"] - first["x"]) * fraction,
                     "y": first["y"] + (second["y"] - first["y"]) * fraction,
                 }
@@ -91,7 +178,12 @@ def _densify(points: list[dict[str, Any]], max_step_px: float) -> list[dict[str,
 
 def _kinematics(
     points: list[dict[str, float]],
-) -> tuple[list[dict[str, float]], list[dict[str, float]], list[dict[str, float]], float]:
+) -> tuple[
+    list[dict[str, float]],
+    list[dict[str, float]],
+    list[dict[str, float]],
+    float,
+]:
     velocities: list[dict[str, float]] = []
     accelerations: list[dict[str, float]] = []
     jerks: list[dict[str, float]] = []
@@ -119,7 +211,10 @@ def _kinematics(
         accelerations.append(
             {
                 "t_ms": second["t_ms"],
-                "accel_px_s2": (second["speed_px_s"] - first["speed_px_s"]) / dt_s,
+                "accel_px_s2": (
+                    second["speed_px_s"] - first["speed_px_s"]
+                )
+                / dt_s,
             }
         )
 
@@ -128,7 +223,10 @@ def _kinematics(
         jerks.append(
             {
                 "t_ms": second["t_ms"],
-                "jerk_px_s3": (second["accel_px_s2"] - first["accel_px_s2"]) / dt_s,
+                "jerk_px_s3": (
+                    second["accel_px_s2"] - first["accel_px_s2"]
+                )
+                / dt_s,
             }
         )
 
@@ -144,12 +242,21 @@ def derive_trial(
     if len(points) < 2:
         raise ValueError("At least two route points are required")
 
-    clean = smooth_points(points)
     target_x = float(target["x"])
     target_y = float(target["y"])
     radius = float(target["radius"])
     start_x = float(start["x"])
     start_y = float(start["y"])
+
+    route = movement_points(points, click, start)
+    if len(route) < 2:
+        raise ValueError("At least two valid pre-click route points are required")
+    clean = smooth_points(route)
+
+    click_down_ms = float(click.get("down_t_ms") or clean[-1]["t_ms"])
+    click_up_ms = float(click.get("up_t_ms") or click_down_ms)
+    click_x = float(click.get("x", clean[-1]["x"]))
+    click_y = float(click.get("y", clean[-1]["y"]))
 
     direction_x = target_x - start_x
     direction_y = target_y - start_y
@@ -168,29 +275,50 @@ def derive_trial(
             reaction_ms = point["t_ms"]
             break
 
-    motion = _densify(points, max(2.0, radius / 4.0))
-    inside = [math.hypot(point["x"] - target_x, point["y"] - target_y) <= radius for point in motion]
-    click_x = float(click.get("x", motion[-1]["x"]))
-    click_y = float(click.get("y", motion[-1]["y"]))
+    motion = _densify(route, max(2.0, radius / 4.0))
+    inside = [
+        math.hypot(point["x"] - target_x, point["y"] - target_y) <= radius
+        for point in motion
+    ]
     if math.hypot(click_x - target_x, click_y - target_y) <= radius and not inside[-1]:
         inside[-1] = True
 
-    first_entry_index = next((index for index, value in enumerate(inside) if value), None)
-    first_entry_ms = motion[first_entry_index]["t_ms"] if first_entry_index is not None else None
-    entry_count = sum(1 for previous, current in zip(inside, inside[1:]) if not previous and current)
-    exit_count = sum(1 for previous, current in zip(inside, inside[1:]) if previous and not current)
+    first_entry_index = next(
+        (index for index, value in enumerate(inside) if value),
+        None,
+    )
+    first_entry_ms = (
+        motion[first_entry_index]["t_ms"]
+        if first_entry_index is not None
+        else None
+    )
+    entry_count = sum(
+        1
+        for previous, current in zip(inside, inside[1:])
+        if not previous and current
+    )
+    exit_count = sum(
+        1
+        for previous, current in zip(inside, inside[1:])
+        if previous and not current
+    )
 
     radial_overshoot = 0.0
     if first_entry_index is not None:
         radial_overshoot = max(
-            max(0.0, math.hypot(point["x"] - target_x, point["y"] - target_y) - radius)
+            max(
+                0.0,
+                math.hypot(point["x"] - target_x, point["y"] - target_y)
+                - radius,
+            )
             for point in motion[first_entry_index:]
         )
 
     directional_overshoot = 0.0
     if straight_distance > 0 and motion:
         projections = [
-            (point["x"] - start_x) * unit_x + (point["y"] - start_y) * unit_y
+            (point["x"] - start_x) * unit_x
+            + (point["y"] - start_y) * unit_y
             for point in motion
         ]
         peak_index = max(range(len(projections)), key=projections.__getitem__)
@@ -206,18 +334,33 @@ def derive_trial(
     if directional_overshoot > 0:
         correction_count = max(1, correction_count)
 
-    click_down_ms = float(click.get("down_t_ms") or clean[-1]["t_ms"])
-    click_up_ms = float(click.get("up_t_ms") or click_down_ms)
-
-    peak_speed_index = max(range(len(velocities)), key=lambda index: velocities[index]["speed_px_s"]) if velocities else 0
+    peak_speed_index = (
+        max(
+            range(len(velocities)),
+            key=lambda index: velocities[index]["speed_px_s"],
+        )
+        if velocities
+        else 0
+    )
     peak_speed = velocities[peak_speed_index]["speed_px_s"] if velocities else 0.0
-    peak_speed_time_ms = velocities[peak_speed_index]["t_ms"] if velocities else 0.0
+    peak_speed_time_ms = (
+        velocities[peak_speed_index]["t_ms"] if velocities else 0.0
+    )
     speed_at_entry = 0.0
     if first_entry_ms is not None and velocities:
-        speed_at_entry = min(velocities, key=lambda item: abs(item["t_ms"] - first_entry_ms))["speed_px_s"]
+        speed_at_entry = min(
+            velocities,
+            key=lambda item: abs(item["t_ms"] - first_entry_ms),
+        )["speed_px_s"]
 
-    peak_acceleration = max((abs(item["accel_px_s2"]) for item in accelerations), default=0.0)
-    peak_jerk = max((abs(item["jerk_px_s3"]) for item in jerks), default=0.0)
+    peak_acceleration = max(
+        (abs(item["accel_px_s2"]) for item in accelerations),
+        default=0.0,
+    )
+    peak_jerk = max(
+        (abs(item["jerk_px_s3"]) for item in jerks),
+        default=0.0,
+    )
     braking = analyze_braking(
         velocities,
         accelerations,
@@ -230,13 +373,25 @@ def derive_trial(
     return {
         "reaction_ms": round(reaction_ms, 3),
         "movement_time_ms": round(click_down_ms, 3),
-        "first_entry_ms": round(first_entry_ms, 3) if first_entry_ms is not None else None,
-        "click_delay_ms": round(max(0.0, click_down_ms - (first_entry_ms or click_down_ms)), 3),
+        "first_entry_ms": (
+            round(first_entry_ms, 3) if first_entry_ms is not None else None
+        ),
+        "click_delay_ms": round(
+            max(0.0, click_down_ms - (first_entry_ms or click_down_ms)),
+            3,
+        ),
         "hold_ms": round(max(0.0, click_up_ms - click_down_ms), 3),
         "distance_px": round(straight_distance, 3),
         "path_length_px": round(path_length, 3),
-        "path_efficiency": round(straight_distance / path_length, 4) if path_length > 0 else 0.0,
-        "click_error_px": round(math.hypot(click_x - target_x, click_y - target_y), 3),
+        "path_efficiency": (
+            round(straight_distance / path_length, 4)
+            if path_length > 0
+            else 0.0
+        ),
+        "click_error_px": round(
+            math.hypot(click_x - target_x, click_y - target_y),
+            3,
+        ),
         "peak_speed_px_s": round(peak_speed, 3),
         "peak_speed_time_ms": round(peak_speed_time_ms, 3),
         "peak_accel_px_s2": round(peak_acceleration, 3),
