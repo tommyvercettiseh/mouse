@@ -17,6 +17,7 @@ from ai_mouse_lab.v074 import apply_patch as apply_v074_patch
 from ai_mouse_lab.v075 import apply_patch as apply_v075_patch
 from ai_mouse_lab.v076 import apply_patch as apply_v076_patch
 from ai_mouse_lab.v077 import apply_patch as apply_v077_patch
+from ai_mouse_lab.v078 import apply_patch as apply_v078_patch
 
 
 def main() -> None:
@@ -33,6 +34,7 @@ def main() -> None:
     apply_v075_patch(original_app)
     apply_v076_patch(original_app)
     apply_v077_patch(original_app)
+    apply_v078_patch(original_app)
     ctk.set_appearance_mode("dark")
     original_app.App().mainloop()
 
