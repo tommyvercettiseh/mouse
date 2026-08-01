@@ -1,4 +1,4 @@
-# AI Mouse Lab v0.11.0
+# AI Mouse Lab v0.12.0
 
 Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke targetgerichte muisbewegingen.
 
@@ -13,6 +13,19 @@ Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke 
 
 A gebruikt bij een A/B-test de nieuwste echte sessie. Gegenereerde runs gebruiken exact dezelfde starts, targets en targetgroottes met jouw persoonlijke profiel.
 
+## Modelkwaliteit in v0.12.0
+
+- route-templates krijgen een kwaliteitsscore en extreme vormen worden niet standaard hergebruikt
+- afstand, richting en targetgrootte sturen timing, overshoot, correcties en misklikkans
+- template-routes tellen click delay niet langer dubbel
+- herhaalde stilstand en microbewegingen worden uit gegenereerde routes opgeschoond
+- sample-intervallen zijn niet meer mechanisch gelijkmatig
+- positieve overshoots gebruiken hun eigen persoonlijke verdeling, inclusief zeldzame grotere uitschieters
+- approach-correcties negeren lage snelheid, microjitter en onbetrouwbare bijna-180° flips
+- approach-metrics worden nu onderdeel van het persoonlijke profiel
+
+Na deze update moet het bestaande profiel opnieuw worden opgebouwd via **Build Profile**, zodat de nieuwe context-, overshoot- en templatekwaliteitsvelden beschikbaar zijn.
+
 ## Actieve architectuur
 
 - `app.py` — klein en stabiel startpunt
@@ -26,8 +39,8 @@ A gebruikt bij een A/B-test de nieuwste echte sessie. Gegenereerde runs gebruike
 - `ai_mouse_lab/metrics.py` — route-, klik-, overshoot- en bewegingsmetingen
 - `ai_mouse_lab/braking.py` — rem- en targetbenaderingsanalyse
 - `ai_mouse_lab/click_model.py` — persoonlijke mouse-downpositie en randpadding
-- `ai_mouse_lab/profile_model.py` — profielbouw, routevormen en kwaliteitsfiltering
-- `ai_mouse_lab/generator.py` — persoonlijke routegenerator
+- `ai_mouse_lab/profile_model.py` — contextprofiel, routevormen en kwaliteitsfiltering
+- `ai_mouse_lab/generator.py` — persoonlijke contextuele routegenerator
 - `ai_mouse_lab/comparison_flow.py` — nieuwste sessie naar A/B-comparison
 - `ai_mouse_lab/storage.py` — atomaire lokale JSON-opslag
 
@@ -50,7 +63,7 @@ De actieve code bevat geen patchketen, legacy-wrapper of Free Record-flow.
 
 De klikpositie wordt vastgelegd op mouse-down. Beweging tijdens het vasthouden en loslaten telt niet mee als targetbeweging, acceleratie of overshoot.
 
-Ruwe punten blijven bewaard, zodat metrics later opnieuw kunnen worden berekend. Routevormen worden genormaliseerd en op nieuwe afstanden en richtingen geprojecteerd; een eenmalige vreemde beweging wordt daardoor niet automatisch een vaste gewoonte.
+Ruwe punten blijven bewaard, zodat metrics later opnieuw kunnen worden berekend. Routevormen worden genormaliseerd en op nieuwe afstanden en richtingen geprojecteerd. Zeldzame vreemde bewegingen blijven mogelijk, maar krijgen minder kans om een volledige generatie te domineren.
 
 ## Heatmap-export
 
