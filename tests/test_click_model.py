@@ -17,7 +17,12 @@ def make_trial(click_x: float, click_y: float, radius: float = 20.0):
         {"t_ms": 140.0, "x": 88.0, "y": 100.0},
         {"t_ms": 190.0, "x": click_x, "y": click_y},
     ]
-    click = {"down_t_ms": 210.0, "up_t_ms": 280.0, "x": click_x, "y": click_y}
+    click = {
+        "down_t_ms": 210.0,
+        "up_t_ms": 280.0,
+        "x": click_x,
+        "y": click_y,
+    }
     return {
         "capture_mode": "normal",
         "target": target,
@@ -36,6 +41,19 @@ class ClickModelTests(unittest.TestCase):
         self.assertEqual(20, model["sample_count"])
         self.assertGreater(model["overall"]["x_ratio"]["mean"], 0.5)
         self.assertGreater(model["overall"]["y_ratio"]["mean"], 0.1)
+
+    def test_exact_mouse_down_event_beats_sample_interpolation(self):
+        trial = make_trial(118.0, 100.0)
+        trial["points"] = [
+            {"t_ms": 0.0, "x": 0.0, "y": 100.0},
+            {"t_ms": 210.0, "x": 100.0, "y": 100.0},
+            {"t_ms": 280.0, "x": 130.0, "y": 120.0},
+        ]
+        trial["click_position_source"] = "mouse_down"
+        model = build_click_model([trial])
+
+        self.assertAlmostEqual(model["overall"]["x_ratio"]["mean"], 0.9, places=3)
+        self.assertAlmostEqual(model["overall"]["y_ratio"]["mean"], 0.0, places=3)
 
     def test_sampling_is_not_forced_to_center(self):
         trials = [make_trial(112.0, 104.0) for _ in range(20)]
@@ -80,8 +98,16 @@ class ClickModelTests(unittest.TestCase):
             )
         )
         for trial in generated:
-            self.assertAlmostEqual(trial["points"][-1]["x"], trial["click"]["x"], places=3)
-            self.assertAlmostEqual(trial["points"][-1]["y"], trial["click"]["y"], places=3)
+            self.assertAlmostEqual(
+                trial["points"][-1]["x"],
+                trial["click"]["x"],
+                places=3,
+            )
+            self.assertAlmostEqual(
+                trial["points"][-1]["y"],
+                trial["click"]["y"],
+                places=3,
+            )
 
     def test_generated_miss_has_visible_recovery_route(self):
         profile = build_personal_profile(
@@ -111,9 +137,20 @@ class ClickModelTests(unittest.TestCase):
                 math.hypot(miss["x"] - 100.0, miss["y"] - 100.0),
                 20.0,
             )
-            self.assertAlmostEqual(trial["points"][-1]["x"], trial["click"]["x"], places=3)
-            self.assertAlmostEqual(trial["points"][-1]["y"], trial["click"]["y"], places=3)
-            self.assertGreater(trial["click"]["down_t_ms"], miss["up_t_ms"])
+            self.assertAlmostEqual(
+                trial["points"][-1]["x"],
+                trial["click"]["x"],
+                places=3,
+            )
+            self.assertAlmostEqual(
+                trial["points"][-1]["y"],
+                trial["click"]["y"],
+                places=3,
+            )
+            self.assertGreater(
+                trial["click"]["down_t_ms"],
+                miss["up_t_ms"],
+            )
 
 
 if __name__ == "__main__":
