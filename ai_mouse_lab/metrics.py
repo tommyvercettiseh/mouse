@@ -40,11 +40,19 @@ def smooth_points(points: list[dict[str, Any]], window: int = 5) -> list[dict[st
         {"t_ms": float(point["t_ms"]), "x": float(point["x"]), "y": float(point["y"])}
         for point in points
     ]
-    if window < 2 or len(source) <= 2:
+    if window < 2 or len(source) <= window:
         return source
+
     radius = window // 2
     output: list[dict[str, float]] = []
     for index, point in enumerate(source):
+        # Preserve the measured start/end exactly. Moving either endpoint can make
+        # the smoothed path shorter than the true straight-line distance and create
+        # impossible path-efficiency values above 1.0.
+        if index == 0 or index == len(source) - 1:
+            output.append(dict(point))
+            continue
+
         lower = max(0, index - radius)
         upper = min(len(source), index + radius + 1)
         chunk = source[lower:upper]
