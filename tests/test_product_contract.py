@@ -14,6 +14,7 @@ class ProductContractTests(unittest.TestCase):
         self.assertNotIn("free_record", source.lower())
         self.assertNotIn("app_v1", source)
         self.assertNotIn("LegacyApp", source)
+        self.assertFalse((ROOT / "app_v1.py").exists())
 
     def test_all_version_sources_match(self):
         version_file = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
