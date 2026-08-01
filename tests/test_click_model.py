@@ -116,6 +116,9 @@ class ClickModelTests(unittest.TestCase):
         )
         profile["miss_count"] = 100
         profile["trial_count"] = 100
+        profile["miss_rate"] = 1.0
+        for context in profile.get("contexts", {}).values():
+            context["miss_rate"] = 1.0
         plan = {
             "seed": 3,
             "targets": [
