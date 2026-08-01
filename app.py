@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ai_mouse_lab.application import App, main
+from app_clean import App, main
 
 __all__ = ["App", "main"]
 
