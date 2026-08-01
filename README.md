@@ -1,59 +1,51 @@
-# AI Mouse Lab v0.9.1
+# AI Mouse Lab v0.9.4
 
-Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke muisbewegingen.
+Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke muisbewegingen in een vaste Aim Lab-arena.
 
 ## Hoofdflow
 
-1. Neem een Aim Lab-sessie op in de vaste virtuele arena van 1920 × 1080.
+1. Neem een Aim Lab-sessie op in 1920 × 1080.
 2. Gebruik **Normale opname** voor profieldata of **Detectietest** voor technische controles.
 3. Klik **Build Profile**.
 4. Klik **Test nieuwste opname A/B**.
-5. A gebruikt de laatste echte Aim Lab-opname; B gebruikt exact dezelfde targetplaylist en het persoonlijke profiel.
+5. A gebruikt de laatste echte opname; B gebruikt dezelfde targets en jouw persoonlijke profiel.
 6. Results speelt alle targets automatisch achter elkaar af.
 
-## Actieve architectuur
+## Productscope
 
-De launcher start `app.py`. Dat bestand laadt uitsluitend `app_v1.py`; de historische patchketen wordt niet meer uitgevoerd.
+Free Record is uit de actieve applicatie verwijderd. Globale cursorposities zijn niet betrouwbaar voor games met raw input, cursor-locking of onbeperkte cameradraai. Aim Lab blijft daarom de enige trainingsbron.
 
 De actieve kern bestaat uit:
 
-- `app_v1.py` — Free Record, Aim Lab, profielbediening en doorlopende A/B-replay
-- `ai_mouse_lab/schema.py` — het enige canonieke JSON-contract en compatibiliteitsnormalisatie
-- `ai_mouse_lab/models.py` — dunne replayhelpers boven op het schema
+- `app.py` — actieve Aim Lab-interface
+- `app_v1.py` — Aim Lab-, profiel- en replayimplementatie; oude Free Record-methodes zijn niet bereikbaar vanuit de actieve app
+- `ai_mouse_lab/schema.py` — canoniek JSON-contract
 - `ai_mouse_lab/metrics.py` — route-, click-, overshoot- en bewegingsmetingen
-- `ai_mouse_lab/braking.py` — robuuste rem- en targetbenaderingsanalyse
-- `ai_mouse_lab/profile_model.py` — contexten, kwaliteitsfiltering en featurestatistieken
-- `ai_mouse_lab/generator.py` — zelfstandige persoonlijke routegenerator
-- `ai_mouse_lab/personal_model.py` — kleine publieke compatibiliteitslaag
-- `ai_mouse_lab/comparison_flow.py` — laatste Aim Lab-opname naar A/B-comparison
-- `ai_mouse_lab/storage.py` — atomaire lokale JSON-opslag
+- `ai_mouse_lab/braking.py` — rem- en targetbenaderingsanalyse
+- `ai_mouse_lab/click_model.py` — persoonlijke klikpositie binnen targets
+- `ai_mouse_lab/profile_model.py` — profielbouw en kwaliteitsfiltering
+- `ai_mouse_lab/generator.py` — persoonlijke routegenerator
+- `ai_mouse_lab/comparison_flow.py` — laatste opname naar A/B-comparison
+- `ai_mouse_lab/storage.py` — lokale JSON-opslag
 
-## Geregistreerde bewegingseigenschappen
-
-Per target worden de volledige ruwe route, startpositie, targetpositie, targetgrootte, eindklik en alle misklikken opgeslagen. Daaruit worden onder meer berekend:
+## Geregistreerde eigenschappen
 
 - reaction time, movement time, click delay en hold
 - afstand, padlengte en route-efficiëntie
-- pieksnelheid en tijdstip van pieksnelheid
-- piekacceleratie, piekdeceleratie en jerk
-- aanhoudende remstart, remafstand en remduur
-- gemiddelde targetbenaderingssnelheid
-- snelheid op 2×, 1× en 0,5× targetradius
-- gemiddelde snelheid in de laatste 100 ms vóór de klik
-- snelheid bij eerste target-entry en slowdown-ratio
+- snelheid, acceleratie, deceleratie en jerk
+- remstart, remafstand en remduur
+- targetbenaderingssnelheid en slowdown
 - radiale en directionele overshoot
 - entries, exits, correcties en misklikken
-
-De ruwe punten blijven bewaard. Daardoor kan de afgeleide meetlogica later opnieuw worden berekend zonder een nieuwe opname.
+- persoonlijke klikafstand, randpadding en klikrichting
 
 ## Data
 
 - `data/aim_lab` — menselijke Aim Lab-sessies
 - `data/profiles` — persoonlijk masterprofiel
 - `data/comparisons` — A/B-vergelijkingen
-- `data/recordings` — vrije cursoropnames
 
-Bestaande lokale data wordt niet automatisch verwijderd. Oude lijstvormige punten en afwijkende velden worden bij het inlezen naar schema 7 genormaliseerd.
+Bestaande lokale Free Record-bestanden worden niet automatisch verwijderd, maar worden niet gebruikt.
 
 ## Testen
 
@@ -63,11 +55,8 @@ python -m unittest discover -s tests -v
 
 ## Bewust nog niet
 
+- raw-inputrecorder voor games
 - externe muisbesturing
 - image detection of click automation
 - cloudopslag
-- database of extra framework
-- heatmaps of video-export
 - automatische classifier
-
-De versie blijft 0.9.1 totdat de volledige Windows-flow lokaal is bevestigd: Aim Lab → Build Profile → A/B → Alles afspelen.
