@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.0
+
+- Fixed double-counted click delay on generated route templates.
+- Added context-weighted timing, overshoot, correction and miss behavior by distance, target size and direction.
+- Added personal positive-overshoot distributions so larger real overshoots can remain rare instead of being capped near target radius.
+- Added route-template quality scoring and weighted template selection.
+- Rejects structurally implausible template shapes before generation.
+- Compresses repeated and near-stationary samples that previously produced artificial freezes.
+- Added irregular generated sample intervals instead of fixed route timing steps.
+- Added approach-correction metrics to global and contextual personal profiles.
+- Reworked approach-correction detection to ignore low-speed microjitter and unreliable near-180-degree flips.
+- Added model-quality regression tests for click delay, template rejection and approach corrections.
+- Synchronized package, VERSION and Turbo Repo Hub metadata.
+
+## 0.11.0
+
+- Added a dedicated Heatmap page.
+- Repeats the newest completed Aim Lab target playlist with the personal generator.
+- Added a 10–500 run slider with 100 runs as the default.
+- Exports every generated trial into one `heatmap_runs.json` file.
+- Added per-target route overlays and a direct button to open the export folder.
+
 ## 0.10.0
 
 - Replaced the legacy `app_v1.py` wrapper with one clean application entrypoint.
