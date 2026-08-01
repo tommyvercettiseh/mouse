@@ -1,1 +1,8 @@
-{"name":"AI Mouse Lab","slug":"mouse","entry":"Start AI Mouse Lab.bat","version":"0.9.0","category":"tool","notes":"Clean integrated backend without the historical patch chain. UI remains focused on Free Record and Aim Lab; latest Aim Lab recording becomes A, generated profile output becomes B, and Results replays the full target playlist automatically."}
+{
+  "name": "AI Mouse Lab",
+  "slug": "mouse",
+  "entry": "Start AI Mouse Lab.bat",
+  "version": "0.10.0",
+  "category": "tool",
+  "notes": "Aim Lab-only Windows tool for recording personal target movements, building a movement profile, generating matched A/B trials and replaying routes with true click positions."
+}
