@@ -9,7 +9,7 @@ Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke 
 3. Klik **Build Profile**.
 4. Klik **Test nieuwste opname A/B**.
 5. A gebruikt de nieuwste echte sessie; B gebruikt dezelfde starts, targets en targetgroottes met jouw persoonlijke profiel.
-6. Results speelt alle targets automatisch af en toont routes, echte klikposities en misklikken.
+6. Results speelt alle targets automatisch af en toont routes, mouse-downposities en misklikken.
 
 ## Actieve architectuur
 
@@ -21,8 +21,8 @@ Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke 
 - `ai_mouse_lab/models.py` — normalisatie en replayhelpers
 - `ai_mouse_lab/metrics.py` — route-, klik-, overshoot- en bewegingsmetingen
 - `ai_mouse_lab/braking.py` — rem- en targetbenaderingsanalyse
-- `ai_mouse_lab/click_model.py` — persoonlijke klikpositie en randpadding
-- `ai_mouse_lab/profile_model.py` — profielbouw en kwaliteitsfiltering
+- `ai_mouse_lab/click_model.py` — persoonlijke mouse-downpositie en randpadding
+- `ai_mouse_lab/profile_model.py` — profielbouw, routevormen en kwaliteitsfiltering
 - `ai_mouse_lab/generator.py` — persoonlijke routegenerator
 - `ai_mouse_lab/comparison_flow.py` — nieuwste sessie naar A/B-comparison
 - `ai_mouse_lab/storage.py` — atomaire lokale JSON-opslag
@@ -41,8 +41,11 @@ De actieve code bevat geen patchketen, legacy-wrapper of Free Record-flow.
 - radiale en directionele overshoot
 - entries, exits, correcties en misklikken
 - persoonlijke klikafstand, randpadding en klikrichting
+- genormaliseerde routevormen, waaronder terugkerende bochten, wiggles en overshoot-correcties
 
-Ruwe punten blijven bewaard, zodat metrics later opnieuw kunnen worden berekend.
+De klikpositie wordt vastgelegd op mouse-down. Beweging tijdens het vasthouden en loslaten telt niet mee als targetbeweging, acceleratie of overshoot.
+
+Ruwe punten blijven bewaard, zodat metrics later opnieuw kunnen worden berekend. Routevormen worden genormaliseerd en op nieuwe afstanden en richtingen geprojecteerd; een eenmalige vreemde beweging wordt daardoor niet automatisch een vaste gewoonte.
 
 ## Data
 
@@ -51,7 +54,7 @@ Ruwe punten blijven bewaard, zodat metrics later opnieuw kunnen worden berekend.
 - `data/comparisons` — A/B-vergelijkingen
 - `logs/ai_mouse_lab.log` — onverwachte applicatiefouten
 
-Bestaande lokale data wordt niet automatisch verwijderd.
+Bestaande lokale data wordt niet automatisch verwijderd. Oudere opnames worden bij het inlezen naar mouse-downsemantiek en het huidige schema genormaliseerd.
 
 ## Starten
 
