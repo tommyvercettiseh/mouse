@@ -4,6 +4,7 @@ import math
 import random
 from typing import Any
 
+from .click_model import sample_click_offset
 from .metrics import derive_trial
 from .schema import SCHEMA_VERSION
 
@@ -121,14 +122,8 @@ def generate_trial(
                 "y": round(last["y"] + (ty - last["y"]) * fraction, 3),
             })
 
-    click_error_stdev = max(1.0, _feature(profile, "click_error_px", "stdev", radius * 0.18))
-    error_x = rng.gauss(0.0, click_error_stdev)
-    error_y = rng.gauss(0.0, click_error_stdev)
-    error_length = math.hypot(error_x, error_y)
-    if error_length > radius * 0.82:
-        scale = radius * 0.82 / error_length
-        error_x *= scale
-        error_y *= scale
+    click_model = profile.get("click_model", {}) if isinstance(profile, dict) else {}
+    error_x, error_y = sample_click_offset(click_model, radius, rng)
 
     click_delay_ms = max(10.0, rng.gauss(click_delay_median * session_scale, click_delay_stdev * 0.55))
     hold_ms = max(25.0, rng.gauss(hold_median, hold_stdev * 0.65))
@@ -143,14 +138,19 @@ def generate_trial(
     miss_clicks: list[dict[str, float]] = []
     miss_rate = float(profile.get("miss_count", 0) or 0) / max(float(profile.get("trial_count", 1) or 1), 1.0)
     if rng.random() < min(0.10, miss_rate):
-        miss_angle = rng.uniform(0.0, math.tau)
-        miss_distance = radius + rng.uniform(2.0, 8.0)
+        miss_x, miss_y = sample_click_offset(click_model, radius, rng, allow_outside=True)
+        miss_distance = math.hypot(miss_x, miss_y)
+        if miss_distance <= radius:
+            angle_out = math.atan2(miss_y, miss_x) if miss_distance > 0 else rng.uniform(0.0, math.tau)
+            miss_distance = radius + rng.uniform(1.5, 7.0)
+            miss_x = math.cos(angle_out) * miss_distance
+            miss_y = math.sin(angle_out) * miss_distance
         miss_t = max(points[-1]["t_ms"], reaction_ms) + max(20.0, click_delay_ms * 0.55)
         miss_clicks.append({
             "down_t_ms": round(miss_t, 3),
             "up_t_ms": round(miss_t + hold_ms * 0.85, 3),
-            "x": round(tx + math.cos(miss_angle) * miss_distance, 3),
-            "y": round(ty + math.sin(miss_angle) * miss_distance, 3),
+            "x": round(tx + miss_x, 3),
+            "y": round(ty + miss_y, 3),
         })
         click["down_t_ms"] = round(miss_clicks[-1]["up_t_ms"] + rng.uniform(45.0, 105.0), 3)
         click["up_t_ms"] = round(click["down_t_ms"] + hold_ms, 3)
