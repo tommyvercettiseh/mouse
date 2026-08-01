@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 from . import __version__
 from .ui_aim import AimLabMixin
+from .ui_heatmap import HeatmapMixin
 from .ui_replay import ReplayMixin
 from .ui_theme import (
     BG,
@@ -54,8 +55,8 @@ def _configure_logger() -> logging.Logger:
 LOGGER = _configure_logger()
 
 
-class App(AimLabMixin, ReplayMixin, ctk.CTk):
-    """Aim Lab recorder, personal profile builder and A/B replay UI."""
+class App(AimLabMixin, ReplayMixin, HeatmapMixin, ctk.CTk):
+    """Aim Lab recorder, personal profile builder and comparison UI."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -68,6 +69,7 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
         self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.init_aim_state()
         self.init_replay_state()
+        self.init_heatmap_state()
         self._build_shell()
         self.show("Aim Lab")
         LOGGER.info("Application started: version=%s", __version__)
@@ -117,17 +119,18 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
             padx=16,
             pady=(0, 18),
         )
-        aim_button = ctk.CTkButton(
-            nav,
-            text="Aim Lab",
-            anchor="w",
-            height=42,
-            fg_color=PURPLE,
-            hover_color=PANEL2,
-            command=lambda: self.show("Aim Lab"),
-        )
-        aim_button.pack(fill="x", padx=10, pady=3)
-        self.nav_buttons["Aim Lab"] = aim_button
+        for name in ("Aim Lab", "Heatmap"):
+            button = ctk.CTkButton(
+                nav,
+                text=name,
+                anchor="w",
+                height=42,
+                fg_color=PURPLE if name == "Aim Lab" else "transparent",
+                hover_color=PANEL2,
+                command=lambda key=name: self.show(key),
+            )
+            button.pack(fill="x", padx=10, pady=3)
+            self.nav_buttons[name] = button
         ctk.CTkLabel(
             nav,
             text="● Data blijft lokaal",
@@ -140,6 +143,7 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
         self.host.grid_columnconfigure(0, weight=1)
         self._page_aim()
         self._page_results()
+        self._page_heatmap()
 
     def page(self, key: str, title: str, subtitle: str) -> ctk.CTkFrame:
         root = ctk.CTkFrame(self.host, fg_color=BG, corner_radius=0)
@@ -180,6 +184,8 @@ class App(AimLabMixin, ReplayMixin, ctk.CTk):
             self.refresh_profile_status()
         elif key == "Results":
             self.refresh_results()
+        elif key == "Heatmap":
+            self.refresh_heatmap()
 
     @staticmethod
     def _canvas_box(canvas: ctk.CTkCanvas) -> tuple[float, float, float]:
