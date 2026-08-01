@@ -52,6 +52,7 @@ class AimLabMixin:
         self.aim_start = {"x": 960.0, "y": 540.0}
         self.aim_spawn = 0.0
         self.aim_click_down: float | None = None
+        self.aim_click_position: tuple[float, float] | None = None
         self.aim_session_folder: Path | None = None
         self.aim_last_drawn = 0
 
@@ -81,9 +82,12 @@ class AimLabMixin:
 
         side = Card(body)
         side.grid(row=0, column=1, sticky="nsew", padx=6, pady=6)
-        ctk.CTkLabel(side, text="Sessie", text_color=TEXT, font=("Segoe UI", 17, "bold")).pack(
-            anchor="w", padx=18, pady=(18, 8)
-        )
+        ctk.CTkLabel(
+            side,
+            text="Sessie",
+            text_color=TEXT,
+            font=("Segoe UI", 17, "bold"),
+        ).pack(anchor="w", padx=18, pady=(18, 8))
         self.count_menu = ctk.CTkOptionMenu(
             side,
             values=["20", "50", "100"],
@@ -206,20 +210,31 @@ class AimLabMixin:
             self.aim_overlay.place(x=0, y=0, relwidth=1, relheight=1)
             self.aim_overlay.grid_rowconfigure(0, weight=1)
             self.aim_overlay.grid_columnconfigure(0, weight=1)
-            self.aim_canvas = ctk.CTkCanvas(self.aim_overlay, bg=PANEL, highlightthickness=0)
+            self.aim_canvas = ctk.CTkCanvas(
+                self.aim_overlay,
+                bg=PANEL,
+                highlightthickness=0,
+            )
             self.aim_canvas.grid(row=0, column=0, sticky="nsew")
             self.aim_canvas.bind("<ButtonPress-1>", self._aim_press)
             self.aim_canvas.bind("<ButtonRelease-1>", self._aim_release)
             self.bind("<Escape>", lambda _event: self.abort_aim())
             self.attributes("-fullscreen", True)
-            self.after(50, lambda: self._start_aim_when_ready(self.aim_generation, 0))
+            self.after(
+                50,
+                lambda: self._start_aim_when_ready(self.aim_generation, 0),
+            )
         except TclError as exc:
             self.aim_active = False
             self._close_aim_overlay()
             self._show_error("Fullscreen openen", exc, self.aim_status)
 
     def _start_aim_when_ready(self, generation: int, attempt: int) -> None:
-        if not self.aim_active or generation != self.aim_generation or self.aim_canvas is None:
+        if (
+            not self.aim_active
+            or generation != self.aim_generation
+            or self.aim_canvas is None
+        ):
             return
         try:
             self.aim_canvas.update_idletasks()
@@ -230,7 +245,10 @@ class AimLabMixin:
             return
         if width < 800 or height < 500:
             if attempt < 80:
-                self.after(40, lambda: self._start_aim_when_ready(generation, attempt + 1))
+                self.after(
+                    40,
+                    lambda: self._start_aim_when_ready(generation, attempt + 1),
+                )
             else:
                 self.abort_aim("Fullscreen canvas kon niet worden opgebouwd.")
             return
@@ -276,21 +294,32 @@ class AimLabMixin:
             outline="#c4b5fd",
             width=3,
         )
-        self.aim_canvas.create_text(x, y, text=str(self.aim_index + 1), fill="white")
+        self.aim_canvas.create_text(
+            x,
+            y,
+            text=str(self.aim_index + 1),
+            fill="white",
+        )
         self.aim_canvas.create_text(
             18,
             18,
             anchor="nw",
-            text=f"Target {self.aim_index + 1}/{len(self.aim_plan)} · misklikken 0 · Esc stopt",
+            text=(
+                f"Target {self.aim_index + 1}/{len(self.aim_plan)} · "
+                "misklikken 0 · Esc stopt"
+            ),
             fill=TEXT,
             font=("Segoe UI", 12, "bold"),
             tags="status",
         )
         pointer_x, pointer_y = self._pointer_virtual()
         self.aim_start = {"x": pointer_x, "y": pointer_y}
-        self.aim_points = [{"t_ms": 0.0, "x": pointer_x, "y": pointer_y}]
+        self.aim_points = [
+            {"t_ms": 0.0, "x": pointer_x, "y": pointer_y}
+        ]
         self.aim_spawn = time.perf_counter()
         self.aim_click_down = None
+        self.aim_click_position = None
         self.aim_last_drawn = 1
 
     def _aim_sample(self, generation: int) -> None:
@@ -300,10 +329,17 @@ class AimLabMixin:
         x, y = self._pointer_virtual()
         t_ms = (time.perf_counter() - self.aim_spawn) * 1000.0
         self.aim_points.append(
-            {"t_ms": round(t_ms, 3), "x": round(x, 3), "y": round(y, 3)}
+            {
+                "t_ms": round(t_ms, 3),
+                "x": round(x, 3),
+                "y": round(y, 3),
+            }
         )
         self._draw_aim_trace()
-        self.aim_after_id = self.after(SAMPLE_MS, lambda: self._aim_sample(generation))
+        self.aim_after_id = self.after(
+            SAMPLE_MS,
+            lambda: self._aim_sample(generation),
+        )
 
     def _draw_aim_trace(self) -> None:
         if self.aim_canvas is None or len(self.aim_points) < 2:
@@ -311,8 +347,16 @@ class AimLabMixin:
         for index in range(max(1, self.aim_last_drawn), len(self.aim_points)):
             first = self.aim_points[index - 1]
             second = self.aim_points[index]
-            first_x, first_y = self._to_canvas(self.aim_canvas, first["x"], first["y"])
-            second_x, second_y = self._to_canvas(self.aim_canvas, second["x"], second["y"])
+            first_x, first_y = self._to_canvas(
+                self.aim_canvas,
+                first["x"],
+                first["y"],
+            )
+            second_x, second_y = self._to_canvas(
+                self.aim_canvas,
+                second["x"],
+                second["y"],
+            )
             self.aim_canvas.create_line(
                 first_x,
                 first_y,
@@ -323,22 +367,33 @@ class AimLabMixin:
             )
         self.aim_last_drawn = len(self.aim_points)
 
-    def _aim_press(self, _event: Any) -> None:
-        if self.aim_active:
-            self.aim_click_down = time.perf_counter()
+    def _aim_press(self, event: Any) -> None:
+        if not self.aim_active or self.aim_canvas is None:
+            return
+        self.aim_click_down = time.perf_counter()
+        self.aim_click_position = self._to_virtual(
+            self.aim_canvas,
+            float(event.x),
+            float(event.y),
+        )
 
     def _aim_release(self, event: Any) -> None:
         if not self.aim_active or self.aim_canvas is None:
             return
         released = time.perf_counter()
-        x, y = self._to_virtual(self.aim_canvas, float(event.x), float(event.y))
+        release_x, release_y = self._to_virtual(
+            self.aim_canvas,
+            float(event.x),
+            float(event.y),
+        )
         self.aim_points.append(
             {
                 "t_ms": round((released - self.aim_spawn) * 1000.0, 3),
-                "x": round(x, 3),
-                "y": round(y, 3),
+                "x": round(release_x, 3),
+                "y": round(release_y, 3),
             }
         )
+        down_x, down_y = self.aim_click_position or (release_x, release_y)
         target = self.aim_plan[self.aim_index]
         click = {
             "down_t_ms": round(
@@ -346,17 +401,21 @@ class AimLabMixin:
                 3,
             ),
             "up_t_ms": round((released - self.aim_spawn) * 1000.0, 3),
-            "x": round(x, 3),
-            "y": round(y, 3),
+            "x": round(down_x, 3),
+            "y": round(down_y, 3),
+            "release_x": round(release_x, 3),
+            "release_y": round(release_y, 3),
         }
-        if not is_target_hit(x, y, target):
+        if not is_target_hit(down_x, down_y, target):
             self.aim_miss_clicks.append(click)
             self.aim_click_down = None
+            self.aim_click_position = None
             self.aim_canvas.itemconfigure(
                 "status",
                 text=(
                     f"Target {self.aim_index + 1}/{len(self.aim_plan)} · "
-                    f"misklikken {len(self.aim_miss_clicks)} · raak hetzelfde target"
+                    f"misklikken {len(self.aim_miss_clicks)} · "
+                    "raak hetzelfde target"
                 ),
             )
             return
@@ -368,7 +427,12 @@ class AimLabMixin:
             "radius": target["radius"],
         }
         try:
-            derived = derive_trial(target_data, self.aim_start, self.aim_points, click)
+            derived = derive_trial(
+                target_data,
+                self.aim_start,
+                self.aim_points,
+                click,
+            )
         except (KeyError, TypeError, ValueError) as exc:
             LOGGER.exception("Trial derivation failed")
             self.abort_aim(f"Meetfout: {type(exc).__name__}: {exc}")
@@ -377,6 +441,7 @@ class AimLabMixin:
             {
                 "schema_version": SCHEMA_VERSION,
                 "coordinate_space": "virtual_1920x1080",
+                "click_position_source": "mouse_down",
                 "target": target_data,
                 "start": dict(self.aim_start),
                 "points": list(self.aim_points),
@@ -384,7 +449,9 @@ class AimLabMixin:
                 "miss_clicks": list(self.aim_miss_clicks),
                 "derived": derived,
                 "capture_mode": (
-                    "test" if self.capture_mode.get() == "Detectietest" else "normal"
+                    "test"
+                    if self.capture_mode.get() == "Detectietest"
+                    else "normal"
                 ),
             }
         )
@@ -401,7 +468,10 @@ class AimLabMixin:
         self.aim_generation += 1
         self._cancel_aim_after()
         folder = self.aim_session_folder or (AIM / now_stamp())
-        miss_count = sum(len(trial.get("miss_clicks", [])) for trial in self.aim_trials)
+        miss_count = sum(
+            len(trial.get("miss_clicks", []))
+            for trial in self.aim_trials
+        )
         try:
             write_json(folder / "trials.json", self.aim_trials)
             write_json(
@@ -409,7 +479,10 @@ class AimLabMixin:
                 {
                     "schema_version": SCHEMA_VERSION,
                     "trial_count": len(self.aim_trials),
-                    "point_count": sum(len(trial["points"]) for trial in self.aim_trials),
+                    "point_count": sum(
+                        len(trial["points"])
+                        for trial in self.aim_trials
+                    ),
                     "miss_count": miss_count,
                     "created_at": datetime.now().isoformat(),
                 },
@@ -418,7 +491,10 @@ class AimLabMixin:
             self._show_error("Sessie opslaan", exc, self.aim_status)
         else:
             self.aim_status.configure(
-                text=f"Klaar\n{len(self.aim_trials)} targets\n{miss_count} misklikken",
+                text=(
+                    f"Klaar\n{len(self.aim_trials)} targets\n"
+                    f"{miss_count} misklikken"
+                ),
                 text_color=GREEN,
             )
             LOGGER.info(
@@ -470,7 +546,8 @@ class AimLabMixin:
             profile = build_personal_profile(trials, [])
             if int(profile.get("trial_count", 0) or 0) == 0:
                 raise ValueError(
-                    "Geen geldige normale trials gevonden. Controleer de afkeur-redenen."
+                    "Geen geldige normale trials gevonden. "
+                    "Controleer de afkeur-redenen."
                 )
             write_json(PROFILES / "master_profile.json", profile)
             self.refresh_profile_status()
@@ -492,7 +569,10 @@ class AimLabMixin:
     def refresh_profile_status(self) -> None:
         profile = read_json(PROFILES / "master_profile.json", {})
         if not isinstance(profile, dict) or not profile:
-            self.profile_status.configure(text="Nog geen profiel gebouwd", text_color=MUTED)
+            self.profile_status.configure(
+                text="Nog geen profiel gebouwd",
+                text_color=MUTED,
+            )
             return
         contexts = profile.get("contexts", {})
         strong_contexts = (
@@ -523,13 +603,18 @@ class AimLabMixin:
         )
 
     def test_latest_ab(self) -> None:
-        self.compare_btn.configure(state="disabled", text="Vergelijking maken…")
+        self.compare_btn.configure(
+            state="disabled",
+            text="Vergelijking maken…",
+        )
         try:
             folder, session_a, session_b = create_latest_comparison()
             trials_a = normalize_trials(session_a)
             trials_b = normalize_trials(session_b)
             if not trials_a or len(trials_a) != len(trials_b):
-                raise ValueError("A/B-data is leeg of heeft ongelijke targetaantallen.")
+                raise ValueError(
+                    "A/B-data is leeg of heeft ongelijke targetaantallen."
+                )
             self.replay_a = {**session_a, "trials": trials_a}
             self.replay_b = {**session_b, "trials": trials_b}
             self.replay_index = 0
@@ -539,7 +624,11 @@ class AimLabMixin:
                 text=f"Klaar · {len(trials_a)} targets\n{folder.name}",
                 text_color=GREEN,
             )
-            LOGGER.info("Comparison created: folder=%s trials=%s", folder, len(trials_a))
+            LOGGER.info(
+                "Comparison created: folder=%s trials=%s",
+                folder,
+                len(trials_a),
+            )
             self.show("Results")
         except (KeyError, OSError, TypeError, ValueError) as exc:
             self._show_error("A/B-vergelijking", exc, self.compare_status)
