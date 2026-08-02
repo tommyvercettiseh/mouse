@@ -66,10 +66,7 @@ def _sleep_until(deadline: float, stop_event: threading.Event) -> bool:
         remaining = deadline - time.perf_counter()
         if remaining <= 0:
             return True
-        if remaining > 0.004:
-            time.sleep(remaining - 0.002)
-        else:
-            time.sleep(0)
+        time.sleep(max(0.0, remaining - 0.002) if remaining > 0.004 else 0)
     return False
 
 
@@ -85,18 +82,23 @@ class RandomMouseTest:
             raise ValueError("Het persoonlijke muisprofiel is leeg of ongeldig.")
 
         self.root = tk.Tk()
-        self.root.title("AI Mouse – Randomized Test")
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)
-        self.root.attributes("-fullscreen", True)
+        self.root.title("AI Mouse Random Test")
         self.root.configure(bg=TRANSPARENT)
+
+        # Windows/Tk does not allow -fullscreen while overrideredirect is active.
+        # A borderless screen-sized window gives the same visual result without
+        # triggering the TclError seen on startup.
+        self.width = max(800, self.root.winfo_screenwidth())
+        self.height = max(600, self.root.winfo_screenheight())
+        self.root.overrideredirect(True)
+        self.root.geometry(f"{self.width}x{self.height}+0+0")
+        self.root.resizable(False, False)
+        self.root.attributes("-topmost", True)
         try:
             self.root.wm_attributes("-transparentcolor", TRANSPARENT)
         except tk.TclError:
             self.root.attributes("-alpha", 0.22)
 
-        self.width = max(800, self.root.winfo_screenwidth())
-        self.height = max(600, self.root.winfo_screenheight())
         self.canvas = tk.Canvas(
             self.root,
             width=self.width,
@@ -106,9 +108,9 @@ class RandomMouseTest:
             bd=0,
         )
         self.canvas.pack(fill="both", expand=True)
-        self.root.bind("<Escape>", lambda _event: self.stop())
+        self.root.bind_all("<Escape>", lambda _event: self.stop())
         self.root.protocol("WM_DELETE_WINDOW", self.stop)
-        self.root.focus_force()
+        self.root.after(50, self._activate_overlay)
 
         self.stop_event = threading.Event()
         self.finished = False
@@ -117,83 +119,51 @@ class RandomMouseTest:
         self.records: list[dict[str, Any]] = []
         self.worker: threading.Thread | None = None
 
+    def _activate_overlay(self) -> None:
+        try:
+            self.root.lift()
+            self.root.focus_force()
+        except tk.TclError:
+            pass
+
     def _draw_hud(self, current: int, status: str) -> None:
         self.canvas.delete("hud")
         self.canvas.create_rectangle(
-            22,
-            20,
-            390,
-            150,
-            fill="#0b0f16",
-            outline="#2e3948",
-            width=1,
-            tags="hud",
+            22, 20, 390, 150,
+            fill="#0b0f16", outline="#2e3948", width=1, tags="hud",
         )
         self.canvas.create_text(
-            42,
-            42,
-            anchor="nw",
-            text="AI Mouse – Randomized Test",
-            fill="#f1f5f9",
-            font=("Segoe UI", 17, "bold"),
-            tags="hud",
+            42, 42, anchor="nw", text="AI Mouse – Randomized Test",
+            fill="#f1f5f9", font=("Segoe UI", 17, "bold"), tags="hud",
         )
         self.canvas.create_text(
-            42,
-            78,
-            anchor="nw",
-            text=f"Beweging {current}/{TARGET_COUNT}",
-            fill="#d9e2ec",
-            font=("Segoe UI", 12),
-            tags="hud",
+            42, 78, anchor="nw", text=f"Beweging {current}/{TARGET_COUNT}",
+            fill="#d9e2ec", font=("Segoe UI", 12), tags="hud",
         )
         self.canvas.create_text(
-            42,
-            105,
-            anchor="nw",
-            text=status,
+            42, 105, anchor="nw", text=status,
             fill="#4ade80" if status == "Actief" else "#facc15",
-            font=("Segoe UI", 12, "bold"),
-            tags="hud",
+            font=("Segoe UI", 12, "bold"), tags="hud",
         )
         self.canvas.create_text(
-            42,
-            130,
-            anchor="nw",
-            text="Esc = direct stoppen",
-            fill="#94a3b8",
-            font=("Segoe UI", 10),
-            tags="hud",
+            42, 130, anchor="nw", text="Esc = direct stoppen",
+            fill="#94a3b8", font=("Segoe UI", 10), tags="hud",
         )
 
     def _draw_target(self, index: int, x: int, y: int, radius: int) -> None:
         self.canvas.delete("target")
         color = "#4ade80" if index < TARGET_COUNT else "#facc15"
         self.canvas.create_oval(
-            x - radius,
-            y - radius,
-            x + radius,
-            y + radius,
-            outline=color,
-            width=3,
-            tags="target",
+            x - radius, y - radius, x + radius, y + radius,
+            outline=color, width=3, tags="target",
         )
         self.canvas.create_oval(
-            x - 3,
-            y - 3,
-            x + 3,
-            y + 3,
-            fill=color,
-            outline="",
-            tags="target",
+            x - 3, y - 3, x + 3, y + 3,
+            fill=color, outline="", tags="target",
         )
         self.canvas.create_text(
-            x,
-            y - radius - 14,
-            text=str(index),
-            fill=color,
-            font=("Segoe UI", 11, "bold"),
-            tags="target",
+            x, y - radius - 14, text=str(index), fill=color,
+            font=("Segoe UI", 11, "bold"), tags="target",
         )
         self._draw_hud(index, "Actief")
         self.canvas.update_idletasks()
@@ -224,35 +194,30 @@ class RandomMouseTest:
     ) -> dict[str, Any]:
         sx, sy = self._to_virtual(*start)
         tx, ty = self._to_virtual(*target)
-        scale = 0.5 * (
-            VIRTUAL_WIDTH / self.width + VIRTUAL_HEIGHT / self.height
-        )
+        scale = 0.5 * (VIRTUAL_WIDTH / self.width + VIRTUAL_HEIGHT / self.height)
         plan = {
             "schema_version": 3,
             "seed": self.seed + index,
             "width": int(VIRTUAL_WIDTH),
             "height": int(VIRTUAL_HEIGHT),
-            "targets": [
-                {
-                    "index": index - 1,
-                    "start": [sx, sy],
-                    "target": [tx, ty],
-                    "radius": max(8.0, radius * scale),
-                }
-            ],
+            "targets": [{
+                "index": index - 1,
+                "start": [sx, sy],
+                "target": [tx, ty],
+                "radius": max(8.0, radius * scale),
+            }],
         }
         return simulate(plan, self.profile, seed=self.seed + index)[0]
 
     def _execute_trial(self, trial: dict[str, Any]) -> None:
-        points = trial["points"]
-        click = trial["click"]
         started = time.perf_counter()
-        for point in points:
+        for point in trial["points"]:
             if not _sleep_until(started + float(point["t_ms"]) / 1000.0, self.stop_event):
                 return
             x, y = self._to_screen(float(point["x"]), float(point["y"]))
             _set_cursor(x, y)
 
+        click = trial["click"]
         if not _sleep_until(started + float(click["down_t_ms"]) / 1000.0, self.stop_event):
             return
         _left_down()
@@ -262,7 +227,6 @@ class RandomMouseTest:
         _left_up()
 
     def _run(self) -> None:
-        _require_windows()
         winmm.timeBeginPeriod(1)
         try:
             for index in range(1, TARGET_COUNT + 1):
@@ -286,24 +250,17 @@ class RandomMouseTest:
                 if self.stop_event.is_set():
                     break
 
-                trial = self._build_trial(
-                    index,
-                    start,
-                    (target_x, target_y),
-                    radius,
-                )
+                trial = self._build_trial(index, start, (target_x, target_y), radius)
                 self._execute_trial(trial)
                 if self.stop_event.is_set():
                     break
-                self.records.append(
-                    {
-                        "index": index,
-                        "screen_start": list(start),
-                        "screen_target": [target_x, target_y],
-                        "radius": radius,
-                        "trial": trial,
-                    }
-                )
+                self.records.append({
+                    "index": index,
+                    "screen_start": list(start),
+                    "screen_target": [target_x, target_y],
+                    "radius": radius,
+                    "trial": trial,
+                })
                 if self.stop_event.wait(0.38):
                     break
         finally:
@@ -328,8 +285,7 @@ class RandomMouseTest:
             "moves": self.records,
         }
         (OUTPUT_DIR / f"random_mouse_test_{stamp}.json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
     def _finish_ui(self) -> None:
@@ -365,7 +321,6 @@ def main() -> None:
         root = tk.Tk()
         root.withdraw()
         from tkinter import messagebox
-
         messagebox.showerror("AI Mouse Random Test", str(exc))
         root.destroy()
         raise
