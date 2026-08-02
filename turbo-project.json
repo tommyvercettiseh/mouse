@@ -2,7 +2,7 @@
   "name": "AI Mouse Lab",
   "slug": "mouse",
   "entry": "Start AI Mouse Lab.bat",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "category": "tool",
-  "notes": "Aim Lab-only Windows tool with continuous route-cloud generation, measured-speed-safe dynamic timing, reaction and miss caps, compact miss recovery, personal profiling, A/B replay and repeated Heatmap exports."
+  "notes": "Windows AI mouse tool with personal profiling, continuous route generation, measured-speed-safe timing, heatmap analysis and a transparent 10-move desktop test launched via Start Random Mouse Test.bat."
 }
