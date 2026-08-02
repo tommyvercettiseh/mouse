@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0
+
+- Added a standalone transparent Windows desktop test with 10 randomized targets.
+- Shows one numbered click circle at a time over the real desktop while preserving the underlying screen.
+- Executes the personal v0.13.2 movement generator and dynamic no-jump limiter outside Aim Lab.
+- Uses native Windows cursor and click APIs without adding a new dependency.
+- Supports immediate Escape cancellation and saves every completed movement to `data/live_tests`.
+- Added a one-click `Start Random Mouse Test.bat` launcher.
+- Scales between the physical screen and the 1920 × 1080 personal-model coordinate space.
+- Synchronized package, VERSION and Turbo Repo Hub metadata.
+
 ## 0.13.2
 
 - Added a hard human reaction-time floor for generated target acquisition.
