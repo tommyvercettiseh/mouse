@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.2
+
+- Added a hard human reaction-time floor for generated target acquisition.
+- Replaced probabilistic per-trial miss trimming with an exact batch-level miss ceiling of the lower of the personal rate and 10%.
+- Shortened generated miss recovery and capped its timing tail.
+- Tightened raw segment speed limiting to 11,000 px/s.
+- Added a second measured-speed limiter using the exact same smoothed `derive_trial` metric exposed in exported JSON.
+- Dynamically stretches the active timeline and click timing when the measured route would otherwise exceed the cap; coordinates are never skipped or teleported.
+- Added regression tests for reaction time, exact batch miss count, raw segment speed and exported measured peak speed.
+- Synchronized VERSION and Turbo Repo Hub metadata.
+
 ## 0.13.1
 
 - Reduced route-cloud width when the selected personal template already contains strong lateral curvature.
