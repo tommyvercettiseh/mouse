@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ctypes
+import ctypes.wintypes
 import json
 import math
+import os
 import random
 import threading
 import time
@@ -21,27 +23,39 @@ VIRTUAL_WIDTH = 1920.0
 VIRTUAL_HEIGHT = 1080.0
 TRANSPARENT = "#010203"
 TARGET_COUNT = 10
-
-user32 = ctypes.windll.user32
-winmm = ctypes.windll.winmm
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
-VK_ESCAPE = 0x1B
+
+if os.name == "nt":
+    user32 = ctypes.windll.user32
+    winmm = ctypes.windll.winmm
+else:
+    user32 = None
+    winmm = None
+
+
+def _require_windows() -> None:
+    if user32 is None or winmm is None:
+        raise RuntimeError("Deze transparante desktoptest werkt alleen op Windows.")
 
 
 def _set_cursor(x: float, y: float) -> None:
+    _require_windows()
     user32.SetCursorPos(int(round(x)), int(round(y)))
 
 
 def _left_down() -> None:
+    _require_windows()
     user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
 
 
 def _left_up() -> None:
+    _require_windows()
     user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 
 def _cursor_position() -> tuple[int, int]:
+    _require_windows()
     point = ctypes.wintypes.POINT()
     user32.GetCursorPos(ctypes.byref(point))
     return int(point.x), int(point.y)
@@ -61,6 +75,7 @@ def _sleep_until(deadline: float, stop_event: threading.Event) -> bool:
 
 class RandomMouseTest:
     def __init__(self) -> None:
+        _require_windows()
         if not PROFILE_PATH.exists():
             raise FileNotFoundError(
                 "Geen master_profile.json gevonden. Open AI Mouse Lab en klik eerst op Build Profile."
@@ -93,6 +108,7 @@ class RandomMouseTest:
         self.canvas.pack(fill="both", expand=True)
         self.root.bind("<Escape>", lambda _event: self.stop())
         self.root.protocol("WM_DELETE_WINDOW", self.stop)
+        self.root.focus_force()
 
         self.stop_event = threading.Event()
         self.finished = False
@@ -246,6 +262,7 @@ class RandomMouseTest:
         _left_up()
 
     def _run(self) -> None:
+        _require_windows()
         winmm.timeBeginPeriod(1)
         try:
             for index in range(1, TARGET_COUNT + 1):
@@ -255,8 +272,13 @@ class RandomMouseTest:
                 target_x, target_y, radius = self._choose_target(start)
                 ready = threading.Event()
 
-                def draw() -> None:
-                    self._draw_target(index, target_x, target_y, radius)
+                def draw(
+                    move_index: int = index,
+                    x: int = target_x,
+                    y: int = target_y,
+                    target_radius: int = radius,
+                ) -> None:
+                    self._draw_target(move_index, x, y, target_radius)
                     ready.set()
 
                 self.root.after(0, draw)
@@ -271,6 +293,8 @@ class RandomMouseTest:
                     radius,
                 )
                 self._execute_trial(trial)
+                if self.stop_event.is_set():
+                    break
                 self.records.append(
                     {
                         "index": index,
@@ -286,7 +310,10 @@ class RandomMouseTest:
             winmm.timeEndPeriod(1)
             self._save_result()
             self.finished = True
-            self.root.after(0, self._finish_ui)
+            try:
+                self.root.after(0, self._finish_ui)
+            except tk.TclError:
+                pass
 
     def _save_result(self) -> None:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -307,7 +334,10 @@ class RandomMouseTest:
 
     def _finish_ui(self) -> None:
         self.canvas.delete("target")
-        self._draw_hud(len(self.records), "Klaar" if not self.stop_event.is_set() else "Gestopt")
+        self._draw_hud(
+            len(self.records),
+            "Klaar" if not self.stop_event.is_set() else "Gestopt",
+        )
         self.root.after(1100, self.root.destroy)
 
     def stop(self) -> None:
