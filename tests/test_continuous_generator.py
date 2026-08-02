@@ -51,12 +51,13 @@ class ContinuousGeneratorTests(unittest.TestCase):
         self.assertGreater(len(rounded), 12)
         self.assertGreater(max(midpoints) - min(midpoints), 8.0)
 
-    def test_click_delay_and_peak_speed_are_bounded(self):
+    def test_click_delay_reaction_and_measured_peak_are_bounded(self):
         trials = simulate(self._plan(40), self._profile(), seed=99)
         for trial in trials:
+            self.assertGreaterEqual(trial["derived"]["reaction_ms"], 54.9)
             self.assertGreaterEqual(trial["derived"]["click_delay_ms"], 20.0)
             self.assertLessEqual(trial["derived"]["click_delay_ms"], 380.0)
-            self.assertLessEqual(trial["derived"]["peak_speed_px_s"], 11650.0)
+            self.assertLessEqual(trial["derived"]["peak_speed_px_s"], 11510.0)
 
     def test_route_still_ends_at_click(self):
         trial = simulate(self._plan(1), self._profile(), seed=7)[0]
@@ -74,7 +75,15 @@ class ContinuousGeneratorTests(unittest.TestCase):
                 float(second["y"]) - float(first["y"]),
             )
             self.assertGreater(dt, 0.0)
-            self.assertLessEqual(distance / dt * 1000.0, 11650.0)
+            self.assertLessEqual(distance / dt * 1000.0, 11010.0)
+
+    def test_batch_miss_rate_never_exceeds_ten_percent(self):
+        profile = self._profile()
+        profile["miss_rate"] = 1.0
+        profile["miss_count"] = 100
+        trials = simulate(self._plan(100), profile, seed=321)
+        misses = sum(1 for trial in trials if trial.get("miss_clicks"))
+        self.assertLessEqual(misses, 10)
 
 
 if __name__ == "__main__":
