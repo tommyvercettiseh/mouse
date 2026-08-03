@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.2
+
+- Added a rotating segmented ring around the live cursor in the Random Mouse Test.
+- Added a fading cyan trail that follows the last part of each generated movement.
+- Keeps visual rendering on the Tk main thread so route timing, limiter behavior and cursor execution stay unaffected.
+- Resets the trail for each new movement while preserving the visible target and HUD.
+- Synchronized package, VERSION and Turbo Repo Hub metadata.
+
 ## 0.14.0
 
 - Added a standalone transparent Windows desktop test with 10 randomized targets.
