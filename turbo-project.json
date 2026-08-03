@@ -2,7 +2,7 @@
   "name": "AI Mouse Lab",
   "slug": "mouse",
   "entry": "Start AI Mouse Lab.bat",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "category": "tool",
-  "notes": "Windows AI mouse tool with personal profiling, continuous route generation, measured-speed-safe timing, heatmap analysis and a transparent 10-move desktop test launched via Start Random Mouse Test.bat."
+  "notes": "Windows AI mouse tool with personal profiling, continuous route generation, measured-speed-safe timing, heatmap analysis and a transparent 10-move desktop test with a rotating segmented cursor ring and fading live trail."
 }
