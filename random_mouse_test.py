@@ -9,6 +9,7 @@ import random
 import threading
 import time
 import tkinter as tk
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,11 @@ TRANSPARENT = "#010203"
 TARGET_COUNT = 10
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
+TRAIL_MAX_POINTS = 34
+TRAIL_MIN_DISTANCE_PX = 2.0
+VISUAL_REFRESH_MS = 16
+RING_RADIUS = 17
+RING_SEGMENTS = 6
 
 if os.name == "nt":
     user32 = ctypes.windll.user32
@@ -70,6 +76,17 @@ def _sleep_until(deadline: float, stop_event: threading.Event) -> bool:
     return False
 
 
+def _trail_color(progress: float) -> str:
+    """Return a dark-to-bright cyan color without relying on canvas alpha."""
+    progress = max(0.0, min(1.0, progress))
+    start = (18, 54, 67)
+    end = (96, 224, 255)
+    red = round(start[0] + (end[0] - start[0]) * progress)
+    green = round(start[1] + (end[1] - start[1]) * progress)
+    blue = round(start[2] + (end[2] - start[2]) * progress)
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
 class RandomMouseTest:
     def __init__(self) -> None:
         _require_windows()
@@ -85,9 +102,6 @@ class RandomMouseTest:
         self.root.title("AI Mouse Random Test")
         self.root.configure(bg=TRANSPARENT)
 
-        # Windows/Tk does not allow -fullscreen while overrideredirect is active.
-        # A borderless screen-sized window gives the same visual result without
-        # triggering the TclError seen on startup.
         self.width = max(800, self.root.winfo_screenwidth())
         self.height = max(600, self.root.winfo_screenheight())
         self.root.overrideredirect(True)
@@ -118,6 +132,13 @@ class RandomMouseTest:
         self.rng = random.Random(self.seed)
         self.records: list[dict[str, Any]] = []
         self.worker: threading.Thread | None = None
+
+        self.visual_lock = threading.Lock()
+        self.visual_position: tuple[float, float] | None = None
+        self.visual_trail: deque[tuple[float, float]] = deque(maxlen=TRAIL_MAX_POINTS)
+        self.ring_angle = 0.0
+        self.visual_after_id: str | None = None
+        self.visual_after_id = self.root.after(VISUAL_REFRESH_MS, self._animate_visuals)
 
     def _activate_overlay(self) -> None:
         try:
@@ -168,6 +189,66 @@ class RandomMouseTest:
         self._draw_hud(index, "Actief")
         self.canvas.update_idletasks()
 
+    def _publish_visual_position(self, x: float, y: float, reset: bool = False) -> None:
+        with self.visual_lock:
+            if reset:
+                self.visual_trail.clear()
+            previous = self.visual_trail[-1] if self.visual_trail else None
+            if previous is None or math.hypot(x - previous[0], y - previous[1]) >= TRAIL_MIN_DISTANCE_PX:
+                self.visual_trail.append((x, y))
+            self.visual_position = (x, y)
+
+    def _animate_visuals(self) -> None:
+        if not self.root.winfo_exists():
+            return
+        try:
+            self.canvas.delete("cursor_visual")
+            with self.visual_lock:
+                position = self.visual_position
+                trail = list(self.visual_trail)
+
+            if len(trail) >= 2:
+                segment_count = len(trail) - 1
+                for index, (first, second) in enumerate(zip(trail, trail[1:])):
+                    progress = (index + 1) / max(1, segment_count)
+                    self.canvas.create_line(
+                        first[0], first[1], second[0], second[1],
+                        fill=_trail_color(progress),
+                        width=1.0 + progress * 2.4,
+                        capstyle=tk.ROUND,
+                        smooth=True,
+                        tags="cursor_visual",
+                    )
+
+            if position is not None:
+                x, y = position
+                self.ring_angle = (self.ring_angle + 5.0) % 360.0
+                segment_span = 360.0 / RING_SEGMENTS
+                for segment in range(RING_SEGMENTS):
+                    self.canvas.create_arc(
+                        x - RING_RADIUS,
+                        y - RING_RADIUS,
+                        x + RING_RADIUS,
+                        y + RING_RADIUS,
+                        start=self.ring_angle + segment * segment_span,
+                        extent=segment_span * 0.54,
+                        style=tk.ARC,
+                        outline="#60e0ff",
+                        width=2,
+                        tags="cursor_visual",
+                    )
+                self.canvas.create_oval(
+                    x - 2.5, y - 2.5, x + 2.5, y + 2.5,
+                    fill="#baf4ff", outline="", tags="cursor_visual",
+                )
+
+            self.canvas.tag_raise("cursor_visual")
+            self.canvas.tag_raise("target")
+            self.canvas.tag_raise("hud")
+            self.visual_after_id = self.root.after(VISUAL_REFRESH_MS, self._animate_visuals)
+        except tk.TclError:
+            self.visual_after_id = None
+
     def _choose_target(self, current: tuple[int, int]) -> tuple[int, int, int]:
         margin_x = max(90, int(self.width * 0.06))
         margin_y = max(90, int(self.height * 0.08))
@@ -211,11 +292,14 @@ class RandomMouseTest:
 
     def _execute_trial(self, trial: dict[str, Any]) -> None:
         started = time.perf_counter()
+        first_point = True
         for point in trial["points"]:
             if not _sleep_until(started + float(point["t_ms"]) / 1000.0, self.stop_event):
                 return
             x, y = self._to_screen(float(point["x"]), float(point["y"]))
             _set_cursor(x, y)
+            self._publish_visual_position(x, y, reset=first_point)
+            first_point = False
 
         click = trial["click"]
         if not _sleep_until(started + float(click["down_t_ms"]) / 1000.0, self.stop_event):
@@ -233,6 +317,7 @@ class RandomMouseTest:
                 if self.stop_event.is_set():
                     break
                 start = _cursor_position()
+                self._publish_visual_position(float(start[0]), float(start[1]), reset=True)
                 target_x, target_y, radius = self._choose_target(start)
                 ready = threading.Event()
 
@@ -302,6 +387,8 @@ class RandomMouseTest:
             self.root.destroy()
 
     def start(self) -> None:
+        start_x, start_y = _cursor_position()
+        self._publish_visual_position(float(start_x), float(start_y), reset=True)
         self._draw_hud(0, "Start over 2 seconden")
         self.root.after(2000, self._start_worker)
         self.root.mainloop()
