@@ -6,6 +6,7 @@ from typing import Any
 
 from .generator import simulate as base_simulate
 from .metrics import derive_trial
+from .speed_limiter import retime_route_without_jumps
 
 MIN_REACTION_MS = 55.0
 RAW_SPEED_CAP_PX_S = 11000.0
@@ -250,32 +251,20 @@ def _trim_click_delay(trial: dict[str, Any], rng: random.Random) -> None:
     _rebuild_settle_phase(trial, entry_index, desired, rng)
 
 
-def _retime_without_jumps(trial: dict[str, Any], cap_px_s: float = RAW_SPEED_CAP_PX_S) -> None:
-    points = trial["points"]
-    if len(points) < 2:
-        return
-
-    hold = max(25.0, float(trial["click"]["up_t_ms"]) - float(trial["click"]["down_t_ms"]))
-    retimed = [dict(points[0])]
-    for original_first, original_second in zip(points, points[1:]):
-        previous_new = retimed[-1]
-        distance = math.hypot(
-            float(original_second["x"]) - float(original_first["x"]),
-            float(original_second["y"]) - float(original_first["y"]),
-        )
-        original_dt = max(0.5, float(original_second["t_ms"]) - float(original_first["t_ms"]))
-        physical_dt = distance / cap_px_s * 1000.0
-        retimed.append({
-            "t_ms": round(float(previous_new["t_ms"]) + max(original_dt, physical_dt), 3),
-            "x": float(original_second["x"]),
-            "y": float(original_second["y"]),
-        })
-
-    trial["points"] = retimed
-    route_end = float(retimed[-1]["t_ms"])
-    click_down = max(route_end, float(trial["click"]["down_t_ms"]))
-    trial["click"]["down_t_ms"] = round(click_down, 3)
-    trial["click"]["up_t_ms"] = round(click_down + hold, 3)
+def _retime_without_jumps(
+    trial: dict[str, Any],
+    cap_px_s: float = RAW_SPEED_CAP_PX_S,
+) -> bool:
+    points, click, misses, changed = retime_route_without_jumps(
+        trial["points"],
+        trial["click"],
+        trial.get("miss_clicks", []),
+        cap_px_s=cap_px_s,
+    )
+    trial["points"] = points
+    trial["click"] = click
+    trial["miss_clicks"] = misses
+    return changed
 
 
 def _stretch_active_timeline(trial: dict[str, Any], factor: float) -> None:
@@ -284,6 +273,19 @@ def _stretch_active_timeline(trial: dict[str, Any], factor: float) -> None:
         return
     anchor = float(trial["points"][index - 1]["t_ms"]) if index > 0 else 0.0
     for point in trial["points"][index:]:
+        point["t_ms"] = round(anchor + (float(point["t_ms"]) - anchor) * factor, 3)
+    for key in ("down_t_ms", "up_t_ms"):
+        trial["click"][key] = round(anchor + (float(trial["click"][key]) - anchor) * factor, 3)
+    for miss in trial.get("miss_clicks", []):
+        for key in ("down_t_ms", "up_t_ms"):
+            miss[key] = round(anchor + (float(miss[key]) - anchor) * factor, 3)
+
+
+def _stretch_full_timeline(trial: dict[str, Any], factor: float) -> None:
+    if factor <= 1.0 or not trial["points"]:
+        return
+    anchor = float(trial["points"][0]["t_ms"])
+    for point in trial["points"][1:]:
         point["t_ms"] = round(anchor + (float(point["t_ms"]) - anchor) * factor, 3)
     for key in ("down_t_ms", "up_t_ms"):
         trial["click"][key] = round(anchor + (float(trial["click"][key]) - anchor) * factor, 3)
@@ -309,6 +311,26 @@ def _enforce_measured_speed_cap(trial: dict[str, Any], cap_px_s: float = MEASURE
     _rederive(trial)
 
 
+def _enforce_measured_acceleration_not_worse(
+    trial: dict[str, Any],
+    baseline_peak_accel_px_s2: float,
+) -> None:
+    if baseline_peak_accel_px_s2 <= 0.0:
+        return
+    for _ in range(4):
+        _rederive(trial)
+        current = float(
+            trial["derived"].get("peak_accel_px_s2", 0.0) or 0.0
+        )
+        if current <= baseline_peak_accel_px_s2 * 1.0001:
+            return
+        _stretch_full_timeline(
+            trial,
+            math.sqrt(current / baseline_peak_accel_px_s2) * 1.01,
+        )
+    _rederive(trial)
+
+
 def simulate(plan: dict[str, Any], profile: dict[str, Any], seed: int | None = None) -> list[dict[str, Any]]:
     trials = base_simulate(plan, profile, seed)
     rng = random.Random((seed or int(plan.get("seed", 1))) ^ 0x5A17C0DE)
@@ -322,7 +344,21 @@ def simulate(plan: dict[str, Any], profile: dict[str, Any], seed: int | None = N
         _compact_miss_recovery(trial, local)
         _trim_click_delay(trial, local)
         _enforce_reaction_floor(trial)
-        _retime_without_jumps(trial)
+        baseline_derived = derive_trial(
+            trial["target"],
+            trial["start"],
+            trial["points"],
+            trial["click"],
+        )
+        changed = _retime_without_jumps(trial)
         _enforce_measured_speed_cap(trial)
+        if changed:
+            _enforce_measured_acceleration_not_worse(
+                trial,
+                float(
+                    baseline_derived.get("peak_accel_px_s2", 0.0)
+                    or 0.0
+                ),
+            )
 
     return trials
