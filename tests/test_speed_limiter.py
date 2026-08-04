@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import unittest
 
+from ai_mouse_lab.metrics import derive_trial
 from ai_mouse_lab.speed_limiter import (
     maximum_segment_speed_px_s,
     retime_route_without_jumps,
@@ -136,6 +137,40 @@ class SpeedLimiterTests(unittest.TestCase):
             misses_in[0]["down_t_ms"],
         )
         self.assertGreater(misses[0]["up_t_ms"], misses[0]["down_t_ms"])
+        self._assert_valid(points, result, click)
+
+    def test_final_spike_retiming_does_not_raise_measured_acceleration(self):
+        target = {"x": 370.0, "y": 16.0, "radius": 18.0}
+        start = {"x": 0.0, "y": 0.0}
+        points = [
+            {"t_ms": 0.0, "x": 0.0, "y": 0.0},
+            {"t_ms": 30.0, "x": 20.0, "y": 0.0},
+            {"t_ms": 60.0, "x": 70.0, "y": 3.0},
+            {"t_ms": 90.0, "x": 150.0, "y": 6.0},
+            {"t_ms": 120.0, "x": 250.0, "y": 10.0},
+            {"t_ms": 150.0, "x": 350.0, "y": 15.0},
+            {"t_ms": 151.0, "x": 370.0, "y": 16.0},
+        ]
+        click_in = {
+            "down_t_ms": 152.0,
+            "up_t_ms": 230.0,
+            "x": 370.0,
+            "y": 16.0,
+        }
+        before = derive_trial(target, start, points, click_in)
+        result, click, _, changed = retime_route_without_jumps(
+            points,
+            click_in,
+            cap_px_s=CAP,
+        )
+        after = derive_trial(target, start, result, click)
+
+        self.assertTrue(changed)
+        self.assertLessEqual(
+            after["peak_accel_px_s2"],
+            before["peak_accel_px_s2"],
+        )
+        self.assertLess(after["peak_speed_px_s"], before["peak_speed_px_s"])
         self._assert_valid(points, result, click)
 
 
