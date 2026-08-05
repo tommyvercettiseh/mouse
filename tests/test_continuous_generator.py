@@ -4,6 +4,7 @@ import math
 import unittest
 
 from ai_mouse_lab.continuous_generator import simulate
+from ai_mouse_lab.natural_landing import MAX_LANDING_SPEED_PX_S, MIN_LANDING_DURATION_MS
 
 
 class ContinuousGeneratorTests(unittest.TestCase):
@@ -64,6 +65,26 @@ class ContinuousGeneratorTests(unittest.TestCase):
         end = trial["points"][-1]
         self.assertTrue(math.isclose(end["x"], trial["click"]["x"], abs_tol=0.001))
         self.assertTrue(math.isclose(end["y"], trial["click"]["y"], abs_tol=0.001))
+
+    def test_final_landing_is_deliberate_and_speed_limited(self):
+        for seed in range(20):
+            trial = simulate(self._plan(1), self._profile(), seed=seed)[0]
+            landing = trial["landing"]
+            self.assertGreaterEqual(landing["duration_ms"], MIN_LANDING_DURATION_MS)
+            start_index = landing["start_index"]
+            for first, second in zip(
+                trial["points"][start_index:],
+                trial["points"][start_index + 1 :],
+            ):
+                elapsed = float(second["t_ms"]) - float(first["t_ms"])
+                distance = math.hypot(
+                    float(second["x"]) - float(first["x"]),
+                    float(second["y"]) - float(first["y"]),
+                )
+                self.assertLessEqual(
+                    distance / elapsed * 1000.0,
+                    MAX_LANDING_SPEED_PX_S + 2.0,
+                )
 
     def test_no_segment_jumps_when_time_is_tight(self):
         trial = simulate(self._plan(1), self._profile(), seed=123)[0]

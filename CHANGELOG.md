@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.15.1
+
+- Added a dedicated 65–105 px natural landing phase that preserves personal route geometry.
+- Progressively lowers the correction speed from 2400 px/s to 900 px/s near the endpoint.
+- Rectangle targets now choose a varied safe aim circle instead of collapsing to the exact centre.
+- Keeps deterministic seeds, personal click bias, overshoots, click timing and target padding intact.
+- Prevents double smoothing from hiding real approach corrections in the personal profile.
+- Added focused regression coverage for landing speed, timing, target safety and endpoint variation.
+
+## 0.15.0
+
+- Added installable Python package metadata and a stable RuneScape Two mouse-engine entry point.
+- Added a runtime provider that exports every generated movement sample and exact mouse-down/up timing as one executable event timeline.
+- Reuses the complete personal continuous generator, including reaction time, click delay, hold duration, route cloud, speed limits, overshoot and corrections.
+- Added rectangle targets with configurable safe click padding.
+- Added explicit and environment-based personal profile discovery without publishing private recordings or heatmaps.
+- Added focused runtime-provider and deterministic-plan regression tests.
+
 ## 0.14.2
 
 - Added a rotating segmented ring around the live cursor in the Random Mouse Test.

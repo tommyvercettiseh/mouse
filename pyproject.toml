@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-mouse-lab"
+version = "0.15.1"
+description = "Personal mouse movement model and RuneScape Two mouse-engine provider"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Hesse" }]
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["customtkinter>=5.2.2"]
+
+[project.entry-points."runescapetwo.mouse_engines"]
+ai_mouse_lab = "ai_mouse_lab.runtime:get_provider"
+
+[tool.setuptools.packages.find]
+include = ["ai_mouse_lab*"]

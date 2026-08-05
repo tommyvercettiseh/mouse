@@ -6,6 +6,7 @@ from typing import Any
 
 from .generator import simulate as base_simulate
 from .metrics import derive_trial
+from .natural_landing import refine_natural_landing
 
 MIN_REACTION_MS = 55.0
 RAW_SPEED_CAP_PX_S = 11000.0
@@ -321,6 +322,7 @@ def simulate(plan: dict[str, Any], profile: dict[str, Any], seed: int | None = N
         )
         _compact_miss_recovery(trial, local)
         _trim_click_delay(trial, local)
+        refine_natural_landing(trial, local)
         _enforce_reaction_floor(trial)
         _retime_without_jumps(trial)
         _enforce_measured_speed_cap(trial)

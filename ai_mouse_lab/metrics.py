@@ -304,6 +304,7 @@ def derive_trial(
     )
 
     velocities, accelerations, jerks, path_length = _kinematics(clean)
+    approach_velocities, _, _, _ = _kinematics(route)
 
     reaction_ms = 0.0
     for point in clean:
@@ -400,6 +401,7 @@ def derive_trial(
     braking = analyze_braking(
         velocities,
         accelerations,
+        approach_velocities=approach_velocities,
         target_x=target_x,
         target_y=target_y,
         radius=radius,
