@@ -1,6 +1,42 @@
-# AI Mouse Lab v0.12.0
+# AI Mouse Lab v0.15.0
 
 Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke targetgerichte muisbewegingen.
+
+De repository is ook rechtstreeks installeerbaar als een RuneScape Two mouse-engine. De runtime gebruikt dezelfde volledige persoonlijke generator als de desktoptests en levert beweging, reaction time, click delay, mouse-down en mouse-up als één tijdlijn.
+
+## Installeren als mouse-engine
+
+Installeer een vaste release of commit vanuit GitHub:
+
+```powershell
+python -m pip install "ai-mouse-lab @ git+https://github.com/tommyvercettiseh/mouse.git@v0.15.0"
+```
+
+RuneScape Two ontdekt de engine via de entry point `runescapetwo.mouse_engines`. Handmatig testen kan ook:
+
+```python
+from ai_mouse_lab.runtime import create_plan
+
+plan = create_plan(
+    start=(400, 300),
+    target={"left": 800, "top": 500, "right": 900, "bottom": 570},
+    padding_px=10,
+    coordinate_size=(1920, 1080),
+    profile_path=r"C:\pad\naar\master_profile.json",
+)
+```
+
+`plan["events"]` bevat chronologisch alle `move`, `button_down` en `button_up` events met `t_ms`, `x` en `y`. Daardoor hoeft RuneScape Two geen timing te reconstrueren en blijft het volledige persoonlijke gedrag behouden. Geef via `coordinate_size` de werkelijke desktopafmetingen door; de runtime rekent automatisch van en naar de vaste persoonlijke modelruimte van 1920 × 1080.
+
+Het profiel wordt in deze volgorde gezocht:
+
+1. Een expliciete `profile_path`.
+2. Omgevingsvariabele `AI_MOUSE_LAB_PROFILE`.
+3. `AI_MOUSE_LAB_DATA_DIR/profiles/master_profile.json`.
+4. `%LOCALAPPDATA%/AI Mouse Lab/profiles/master_profile.json`.
+5. De bestaande lokale map `data/profiles/master_profile.json`.
+
+Ruwe opnames en heatmaps hoeven niet naar GitHub. Alleen het lokale `master_profile.json` is nodig om bewegingen te genereren.
 
 ## Hoofdflow
 
@@ -41,6 +77,7 @@ Na deze update moet het bestaande profiel opnieuw worden opgebouwd via **Build P
 - `ai_mouse_lab/click_model.py` — persoonlijke mouse-downpositie en randpadding
 - `ai_mouse_lab/profile_model.py` — contextprofiel, routevormen en kwaliteitsfiltering
 - `ai_mouse_lab/generator.py` — persoonlijke contextuele routegenerator
+- `ai_mouse_lab/runtime.py` — stabiele plug-in-API en volledig uitvoerbare eventtijdlijn
 - `ai_mouse_lab/comparison_flow.py` — nieuwste sessie naar A/B-comparison
 - `ai_mouse_lab/storage.py` — atomaire lokale JSON-opslag
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0
+
+- Added installable Python package metadata and a stable RuneScape Two mouse-engine entry point.
+- Added a runtime provider that exports every generated movement sample and exact mouse-down/up timing as one executable event timeline.
+- Reuses the complete personal continuous generator, including reaction time, click delay, hold duration, route cloud, speed limits, overshoot and corrections.
+- Added rectangle targets with configurable safe click padding.
+- Added explicit and environment-based personal profile discovery without publishing private recordings or heatmaps.
+- Added focused runtime-provider and deterministic-plan regression tests.
+
 ## 0.14.2
 
 - Added a rotating segmented ring around the live cursor in the Random Mouse Test.

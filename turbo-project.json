@@ -2,7 +2,7 @@
   "name": "AI Mouse Lab",
   "slug": "mouse",
   "entry": "Start AI Mouse Lab.bat",
-  "version": "0.14.2",
+  "version": "0.15.0",
   "category": "tool",
-  "notes": "Windows AI mouse tool with personal profiling, continuous route generation, measured-speed-safe timing, heatmap analysis and a transparent 10-move desktop test with a rotating segmented cursor ring and fading live trail."
+  "notes": "Windows Aim Lab mouse tool and installable RuneScape Two mouse-engine provider with complete timed movement and click plans."
 }

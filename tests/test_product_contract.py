@@ -1,4 +1,5 @@
 import json
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -28,8 +29,10 @@ class ProductContractTests(unittest.TestCase):
     def test_all_version_sources_match(self):
         version_file = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         metadata = json.loads((ROOT / "turbo-project.json").read_text(encoding="utf-8"))
+        package = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         self.assertEqual(__version__, version_file)
         self.assertEqual(__version__, metadata["version"])
+        self.assertEqual(__version__, package["project"]["version"])
 
     def test_turbo_metadata_describes_aim_lab_only_scope(self):
         metadata = json.loads((ROOT / "turbo-project.json").read_text(encoding="utf-8"))
