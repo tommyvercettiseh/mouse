@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import random
 from typing import Any, Mapping, Sequence
 
 from . import __version__
@@ -91,6 +92,7 @@ def _target_circle(
     target: Mapping[str, Any] | Sequence[float],
     target_radius: float | None,
     padding_px: float,
+    random_generator: random.Random,
 ) -> tuple[float, float, float, dict[str, float]]:
     padding = max(0.0, float(padding_px))
     bounds: dict[str, float]
@@ -103,10 +105,24 @@ def _target_circle(
             bottom = float(target["bottom"])
             if right <= left or bottom <= top:
                 raise ValueError("target bounds must have positive width and height")
-            x = (left + right) / 2.0
-            y = (top + bottom) / 2.0
-            raw_radius = min(right - left, bottom - top) / 2.0
             bounds = {"left": left, "top": top, "right": right, "bottom": bottom}
+            safe_left = left + padding
+            safe_top = top + padding
+            safe_right = right - padding
+            safe_bottom = bottom - padding
+            safe_width = safe_right - safe_left
+            safe_height = safe_bottom - safe_top
+            if safe_width <= 0 or safe_height <= 0:
+                raise ValueError("padding_px leaves no clickable target area")
+
+            shortest_side = min(safe_width, safe_height)
+            radius = shortest_side * random_generator.uniform(0.18, 0.28)
+            radius = max(min(shortest_side / 2.0, radius), min(1.0, shortest_side / 2.0))
+            x_space = max(0.0, safe_width - radius * 2.0)
+            y_space = max(0.0, safe_height - radius * 2.0)
+            x = safe_left + radius + x_space * random_generator.betavariate(2.2, 2.2)
+            y = safe_top + radius + y_space * random_generator.betavariate(2.2, 2.2)
+            return x, y, radius, bounds
         elif "x" in target and "y" in target:
             x = float(target["x"])
             y = float(target["y"])
@@ -204,14 +220,20 @@ def create_plan(
     scale_x = VIRTUAL_WIDTH / width
     scale_y = VIRTUAL_HEIGHT / height
 
+    actual_seed = int(seed) if seed is not None else int.from_bytes(os.urandom(8), "big")
+    target_generator = random.Random(actual_seed ^ 0x7A26E91D)
     start_x, start_y = _point(start, "start")
-    target_x, target_y, radius, bounds = _target_circle(target, target_radius, padding_px)
+    target_x, target_y, radius, bounds = _target_circle(
+        target,
+        target_radius,
+        padding_px,
+        target_generator,
+    )
     model_start_x = start_x * scale_x
     model_start_y = start_y * scale_y
     model_target_x = target_x * scale_x
     model_target_y = target_y * scale_y
     model_radius = radius * min(scale_x, scale_y)
-    actual_seed = int(seed) if seed is not None else int.from_bytes(os.urandom(8), "big")
     generator_plan = {
         "schema_version": 3,
         "seed": actual_seed,

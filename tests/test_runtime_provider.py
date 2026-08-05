@@ -58,12 +58,43 @@ class RuntimeProviderTests(unittest.TestCase):
             event["t_ms"] for event in events if event["type"] == "button_down"
         ))
         self.assertEqual(result["trial"]["click"]["up_t_ms"], result["duration_ms"])
-        self.assertEqual(30.0, result["trial"]["target"]["radius"])
+        self.assertGreater(result["trial"]["target"]["radius"], 0.0)
+        self.assertLess(result["trial"]["target"]["radius"], 30.0)
+        click = result["trial"]["click"]
+        self.assertGreaterEqual(click["x"], 910.0)
+        self.assertLessEqual(click["x"], 990.0)
+        self.assertGreaterEqual(click["y"], 410.0)
+        self.assertLessEqual(click["y"], 470.0)
 
     def test_same_seed_produces_the_same_full_plan(self):
         first = create_plan((10, 10), (700, 500, 25), profile=personal_profile(), seed=77)
         second = create_plan((10, 10), (700, 500, 25), profile=personal_profile(), seed=77)
         self.assertEqual(first, second)
+
+    def test_rectangle_targets_vary_without_becoming_centre_locked(self):
+        centres = []
+        clicks = []
+        bounds = {"left": 700.0, "top": 400.0, "right": 1000.0, "bottom": 520.0}
+        for seed in range(12):
+            result = create_plan(
+                (100, 200),
+                bounds,
+                padding_px=20,
+                profile=personal_profile(),
+                seed=seed,
+            )
+            target = result["trial"]["target"]
+            click = result["trial"]["click"]
+            centres.append((round(target["x"], 1), round(target["y"], 1)))
+            clicks.append((round(click["x"], 1), round(click["y"], 1)))
+            self.assertGreaterEqual(click["x"], 720.0)
+            self.assertLessEqual(click["x"], 980.0)
+            self.assertGreaterEqual(click["y"], 420.0)
+            self.assertLessEqual(click["y"], 500.0)
+
+        self.assertGreater(len(set(centres)), 9)
+        self.assertGreater(len(set(clicks)), 9)
+        self.assertTrue(any(abs(x - 850.0) > 25.0 for x, _ in clicks))
 
     def test_screen_coordinates_are_scaled_through_personal_model_space(self):
         result = create_plan(

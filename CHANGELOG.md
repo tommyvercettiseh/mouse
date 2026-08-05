@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.1
+
+- Added a dedicated 65–105 px natural landing phase that preserves personal route geometry.
+- Progressively lowers the correction speed from 2400 px/s to 900 px/s near the endpoint.
+- Rectangle targets now choose a varied safe aim circle instead of collapsing to the exact centre.
+- Keeps deterministic seeds, personal click bias, overshoots, click timing and target padding intact.
+- Prevents double smoothing from hiding real approach corrections in the personal profile.
+- Added focused regression coverage for landing speed, timing, target safety and endpoint variation.
+
 ## 0.15.0
 
 - Added installable Python package metadata and a stable RuneScape Two mouse-engine entry point.

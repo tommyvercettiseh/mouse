@@ -2,7 +2,7 @@
   "name": "AI Mouse Lab",
   "slug": "mouse",
   "entry": "Start AI Mouse Lab.bat",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "category": "tool",
-  "notes": "Windows Aim Lab mouse tool and installable RuneScape Two mouse-engine provider with complete timed movement and click plans."
+  "notes": "Aim Lab personal Mouse provider with varied rectangle targeting and a progressively slowed, accurate natural landing phase."
 }

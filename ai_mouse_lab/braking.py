@@ -172,6 +172,7 @@ def analyze_braking(
     velocities: list[dict[str, float]],
     accelerations: list[dict[str, float]],
     *,
+    approach_velocities: list[dict[str, float]] | None = None,
     target_x: float,
     target_y: float,
     radius: float,
@@ -272,7 +273,7 @@ def analyze_braking(
             else 0.0
         ),
         **_analyze_approach_corrections(
-            enriched,
+            approach_velocities if approach_velocities is not None else enriched,
             target_x=target_x,
             target_y=target_y,
             radius=radius,

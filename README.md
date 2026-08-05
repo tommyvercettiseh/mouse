@@ -1,4 +1,4 @@
-# AI Mouse Lab v0.15.0
+# AI Mouse Lab v0.15.1
 
 Lokale Windows-app voor het opnemen, modelleren en vergelijken van persoonlijke targetgerichte muisbewegingen.
 
@@ -6,10 +6,10 @@ De repository is ook rechtstreeks installeerbaar als een RuneScape Two mouse-eng
 
 ## Installeren als mouse-engine
 
-Installeer een vaste release of commit vanuit GitHub:
+Installeer de huidige RuneScape Two-providerbranch vanuit GitHub:
 
 ```powershell
-python -m pip install "ai-mouse-lab @ git+https://github.com/tommyvercettiseh/mouse.git@v0.15.0"
+python -m pip install "ai-mouse-lab @ git+https://github.com/tommyvercettiseh/mouse.git@agent/package-mouse-runtime"
 ```
 
 RuneScape Two ontdekt de engine via de entry point `runescapetwo.mouse_engines`. Handmatig testen kan ook:
@@ -37,6 +37,8 @@ Het profiel wordt in deze volgorde gezocht:
 5. De bestaande lokale map `data/profiles/master_profile.json`.
 
 Ruwe opnames en heatmaps hoeven niet naar GitHub. Alleen het lokale `master_profile.json` is nodig om bewegingen te genereren.
+
+Rechthoekige targets gebruiken de volledige veilige ruimte met een lichte middenvoorkeur, niet één vast middelpunt. De laatste 65 tot 105 pixels vormen een aparte landing: de snelheid daalt geleidelijk van maximaal 2400 px/s naar 900 px/s bij het eindpunt. Routevorm, overshoot, persoonlijke klikbias, click delay en hold blijven uit het actieve profiel komen.
 
 ## Hoofdflow
 
@@ -77,6 +79,7 @@ Na deze update moet het bestaande profiel opnieuw worden opgebouwd via **Build P
 - `ai_mouse_lab/click_model.py` — persoonlijke mouse-downpositie en randpadding
 - `ai_mouse_lab/profile_model.py` — contextprofiel, routevormen en kwaliteitsfiltering
 - `ai_mouse_lab/generator.py` — persoonlijke contextuele routegenerator
+- `ai_mouse_lab/natural_landing.py` — progressief afgeremde eindcorrectie
 - `ai_mouse_lab/runtime.py` — stabiele plug-in-API en volledig uitvoerbare eventtijdlijn
 - `ai_mouse_lab/comparison_flow.py` — nieuwste sessie naar A/B-comparison
 - `ai_mouse_lab/storage.py` — atomaire lokale JSON-opslag
